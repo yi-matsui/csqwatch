@@ -163,7 +163,7 @@ Timestamp,RSSI,Level,BER,RegStatus,Notes
 `.ps1` `.cs` `probe_commands.txt` は **UTF-8(BOM 付き)・CRLF** です(`.editorconfig` と `.gitattributes` で固定)。
 BOM がないファイルは、日本語環境の Windows PowerShell 5.1 と `csc.exe` が ANSI(cp932)と誤読し、日本語の文字列が壊れます。
 `.bat` は cmd が cp932 を使うため、**ASCII のみ**にしています(日本語を入れないでください)。
-`.md` は UTF-8(BOM なし)・LF です。説明書 `app/manual.html` は MD から `tools/build_manual.py` で生成します(直接編集しない)。
+`.md` は UTF-8(BOM なし)・LF です。説明書 `app/manual.html` は MD から `tools\build_manual.bat`(`Build-Manual.ps1`、PowerShell 5.1 のみ)で生成します(直接編集しない)。
 
 ## 補足
 

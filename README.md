@@ -214,11 +214,11 @@ app/
 ├─ Probe.ps1            対応 AT コマンドの調査
 ├─ probe_commands.txt   Probe が送るコマンド一覧 (1 行 1 コマンド)
 ├─ index.html           画面
-├─ manual.html          説明書 (README と docs を 1 冊にした HTML。tools/build_manual.py で生成)
+├─ manual.html          説明書 (README と docs を 1 冊にした HTML。tools\build_manual.bat で生成)
 ├─ chart.umd.min.js     Chart.js 4.5.1 (同梱)
 ├─ *.bat                ダブルクリック用ランチャ
 └─ (実行時に作られる)    logs\ (CSV・試験ログ)、data.js、profile_<ブラウザ名>\ (監視画面用プロファイル)
-tools/build_manual.py   説明書 manual.html を作る道具 (開発側 PC 用)
+tools/                  説明書 manual.html を作る道具 (build_manual.bat → Build-Manual.ps1)
 docs/                   設計メモ(architecture.md)、関数表(functions.md)、AT コマンド表(at-command-table.md)、
                         AT コマンドの調べ方(at-commands.md)、導入手順(deploy-via-git.md)
 THIRD_PARTY_LICENSES/   同梱ライブラリのライセンス
@@ -244,7 +244,8 @@ MD を読めない PC でも読めるように、README と `docs/` の MD を 1
 - Windows 11 標準の Edge で開けます。インストールは要りません。画像も中に入っているので、1 ファイルだけで表示できます。
 - 先頭の目次から各節へ飛べます。**Ctrl+F で文字を検索**でき、コピーや印刷もできます(印刷すると文書ごとに改ページします)。
 - 監視画面の右上の「説明書」から開けます。
-- 元原稿は MD です。**MD を直したら、開発側の PC で `python tools/build_manual.py` を実行して作り直してください**(Python と `markdown-it-py`・`mdit-py-plugins` が必要です。社内 PC には不要です)。`manual.html` を直接編集しないでください。
+- 元原稿は MD です。**MD を直したら、`tools\build_manual.bat` をダブルクリックして作り直してください。** 中身は PowerShell 5.1 だけで動くスクリプト(`tools\Build-Manual.ps1`)なので、社内 PC でもインストールなしで作り直せます。`manual.html` を直接編集しないでください。
+- 変換は、この文書で使っている書式(見出し・段落・箇条書きとその入れ子・表・コードブロック・インラインのコード/太字/リンク/画像)だけに対応した簡易版です。引用(`>`)や斜体などの新しい書式を使うときは、`Build-Manual.ps1` も直してください。
 
 ## 機器ごとの注意
 

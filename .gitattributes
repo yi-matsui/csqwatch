@@ -6,7 +6,6 @@
 *.txt  text eol=crlf
 *.html text eol=crlf
 *.md   text eol=lf
-*.py   text eol=lf
 
 # ベンダー同梱ファイルは差分・言語統計の対象外
 app/chart.umd.min.js -diff linguist-vendored

@@ -14,6 +14,7 @@ Probe.bat   ──► Probe.ps1   ──┬─ . Config.ps1
                               └─ . Common.ps1
 index.html  ──► data.js (Monitor.ps1 が書き出す)
 build.bat   ──► AtIo.cs → AtIo.exe
+tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.md → app\manual.html
 ```
 
 `. ファイル名` は PowerShell のドットソース(同じスコープに読み込む)です。
@@ -93,14 +94,28 @@ build.bat   ──► AtIo.cs → AtIo.exe
 
 `index.html` の右上の「説明書」は `manual.html` へのリンクです(別の窓で開く)。
 
-## tools/build_manual.py(説明書の生成、開発側 PC 用)
+## tools/Build-Manual.ps1(説明書の生成)
 
-| 関数 | 役割 |
-|---|---|
-| `slugify(text)` | 見出しから ID を作る(GitHub と同じ考え方。日本語は残す) |
-| `render(key, path)` | MD を HTML にし、目次用の見出しを集める。見出し ID には文書ごとの接頭辞を付けて、文書をまたいでも重ならないようにする |
-| `fix_links(body, key, path)` | MD どうしのリンクを説明書の中の節へのリンクに付け替え、画像を HTML に埋め込む。`LICENSE` などは `app/` から見た相対パスにする |
-| `main()` | 決まった順番で文書をつなぎ、目次と CSS を付けて `app/manual.html` に書き出す |
+README と `docs/*.md` を 1 冊の `app/manual.html` にします。PowerShell 5.1 だけで動き、`tools\build_manual.bat` から起動します。MD の変換は、この文書で使っている書式だけに対応した簡易版です。
+
+| 関数 | 引数 | 戻り値 | 役割 |
+|---|---|---|---|
+| `ConvertTo-HtmlText` | `s` | 文字列 | `&` `<` `>` `"` を HTML 用に置き換える |
+| `Get-Slug` | `s` | 文字列 | 見出しから ID を作る(GitHub と同じ考え方。小文字化、記号を除く、空白は `-`。日本語は残す) |
+| `Get-PlainText` | `s` | 文字列 | 見出しから MD の記号(太字の `**`、コードのバッククォート、リンク)を除く。ID と目次に使う |
+| `Get-Indent` | `l`(1 行) | 数値 | 行頭の空白の数 |
+| `Get-DocBase` | なし | パス | 変換中の MD があるフォルダ |
+| `Resolve-Link` | `url` | URL | MD どうしのリンクを説明書の中の節(`#キー-見出しID`)に付け替える。`LICENSE` などは `app/` から見た相対パスにする |
+| `Get-ImageSrc` | `src` | 文字列 | 画像を読み、`data:` 形式で HTML に埋め込む |
+| `ConvertFrom-Inline` | `s` | HTML | 行の中の書式を変換する。コード(バッククォートで囲んだ部分)を先に退避してから、画像・リンク・太字の順に変換する |
+| `Test-ListMarker` | `l` | 真偽値 | 箇条書きの行(`-` / `*` / `1.`)か |
+| `Test-TableStart` | `lines`、`i` | 真偽値 | 表の始まり(見出し行と `---` の区切り行)か |
+| `Test-BlockStart` | `lines`、`i` | 真偽値 | 見出し・コード・箇条書き・表の始まりか(段落の終わりの判定に使う) |
+| `Split-TableRow` | `row` | 配列 | 表の 1 行をセルに分ける(前に `\` が付いた縦棒は、セルの区切りにしない) |
+| `ConvertFrom-Blocks` | `lines`、`Tight` | HTML | 行の並びを、段落・見出し・表・コードブロック・箇条書きに分けて変換する。箇条書きの項目の中身は、字下げを外してから自分自身を呼んで変換する(入れ子に対応) |
+| `ConvertFrom-MdFile` | `Doc` | HTML | MD を 1 本読み、変換する |
+
+最後に、決まった順番で文書をつなぎ、目次と CSS を付けて `app/manual.html`(UTF-8・CRLF)に書き出します。
 
 ## バッチファイル
 
@@ -110,3 +125,4 @@ build.bat   ──► AtIo.cs → AtIo.exe
 | `MonitorMock.bat` | `Monitor.ps1 -Mock` を起動する。終了コード `3` の扱いは `Monitor.bat` と同じ |
 | `Probe.bat` | `Probe.ps1` を起動する(引数はそのまま渡す) |
 | `build.bat` | Windows 標準の `csc.exe`(64bit を優先)で `AtIo.cs` から `AtIo.exe` を作る |
+| `tools\build_manual.bat` | `Build-Manual.ps1` を起動して説明書 `app\manual.html` を作る |
