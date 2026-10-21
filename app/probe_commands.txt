@@ -1,4 +1,5 @@
-﻿# Probe.bat が順に送るコマンド (1 行 1 コマンド。# で始まる行は無視)
+﻿# CsqWatch   Author: yuichi
+# Probe.bat が順に送るコマンド (1 行 1 コマンド。# で始まる行は無視)
 # 読み出し・問い合わせ系だけにしてください。
 # 入れてはいけない例: ATD(発信) / ATZ・AT&F(設定リセット) / AT+CFUN(機能切替) / AT+CPWROFF /
 #                     AT+CGPS=1 のような「設定・起動」系
@@ -23,7 +24,7 @@ AT+CGATT?
 # --- 機器状態 ---
 AT+CPAS
 AT+CPIN?
-AT+CBC
+# AT+CBC    使用禁止: IsatPhone 2 が無応答になり後続も返らなくなる (2026-10-14 確認)
 AT+CLCC
 # --- GPS 探索 (他社モジュールでの例。IsatPhone 2 が対応しているかは不明) ---
 AT+CGPS?

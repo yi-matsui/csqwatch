@@ -1,3 +1,4 @@
+# CsqWatch   Author: yuichi
 # ビルド成果物 (build.bat で生成。配布するなら Release に添付)
 *.exe
 
@@ -9,3 +10,7 @@ app/probe_[0-9]*.txt
 
 # 手元の設定 (COM 番号・発信先)。ひな形は Config.sample.ps1
 app/Config.ps1
+
+# 監視画面用の専用ブラウザプロファイル (Browser.ps1 が作る)
+app/profile_*/
+app/edge_profile/

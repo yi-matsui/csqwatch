@@ -1,10 +1,14 @@
 ﻿# ============================================================
 # Config.sample.ps1 : 設定のひな形
+#   Author: yuichi
 #   初回起動時に Config.ps1 として自動コピーされます。
 #   実際の設定 (COM 番号・発信先など) は Config.ps1 を編集してください。
 #   Config.ps1 は Git に含めません (.gitignore)。
 #   ※ 保存するときの文字コードは「UTF-8 (BOM付き)」のままにしてください
 # ============================================================
+
+# --- 機器 -----------------------------------------------------
+$DeviceName = 'IsatPhone 2'   # 画面の見出しに出す機器名 (空でもよい)
 
 # --- 接続 -----------------------------------------------------
 $Port     = 'COM3'     # デバイスマネージャーで確認した COM 番号
@@ -15,15 +19,31 @@ $PollSec     = 180     # 実機の取得周期 (秒)
 $MockPollSec = 3       # -Mock のときの取得周期 (秒)
 $HistoryMax  = 30      # グラフに表示する点数
 
+# --- 信号の目盛り ---------------------------------------------
+# AT+CSQ の rssi の最大値。機器の AT+CSQ=? の応答 (例 "(0-55,99)") で確認する。
+# IsatPhone 2 は 0〜55 (2026-10-14 確認)。標準 (GSM) は 0〜31。
+# Inmarsat の値は GSM の dBm 換算 (-113 + 2×rssi) が使えないので、生の値で表示する。
+$RssiMax = 55
+
 # --- ファイル -------------------------------------------------
-$IsatIoExe = 'IsatIo.exe'   # このフォルダ内の IO 専用 EXE
-$LogDir    = 'logs'         # CSV の保存先 (月別: isat_YYYYMM.csv)
+$AtIoExe   = 'AtIo.exe'     # このフォルダ内の IO 専用 EXE
+$LogDir    = 'logs'         # CSV の保存先 (月別: csq_YYYYMM.csv)
 
 # --- 定時試験発信 (使わないときは @() のままにする) -----------
 # 例: $CallTimes = @('08:00', '20:00')
 $TestNumber   = '+819012345678'
 $CallTimes    = @()
 $CallDuration = 20          # 呼出し秒数 (その後 ATH で切断)
+
+# --- 監視画面 (Browser.ps1) ------------------------------------
+# 社外監視 (VPN) の窓が最優先。それとは別のブラウザ・別のプロセスで開きます。
+#   auto    : Chrome → Edge の順に探す (Firefox は他業務で使うため含めない)
+#   chrome / edge : タブのない専用の窓 (アプリモード)
+#   firefox : 通常の窓 (タブ付き) だが別プロセス
+$Browser       = 'auto'
+$DashboardSize = '1280,860'   # 窓の大きさ (幅,高さ)       ※ chrome / edge のみ
+$DashboardPos  = ''           # 窓の位置 (x,y)。例 '1920,0' ※ chrome / edge のみ
+$OpenDashboard = $true        # Monitor 起動時に画面を開く ($false で開かない)
 
 # --- AT+CREG? の <stat> の表示名 ------------------------------
 $RegText = @{
@@ -44,5 +64,6 @@ $RegText = @{
 # 先に Probe.bat で、その機器が対応しているコマンドを確認してください。
 $Extras = @(
     # @{ Name = 'Operator'; Cmd = 'AT+COPS?'; Regex = '\+COPS:\s*\d+,\d+,"([^"]*)"' }
-    # @{ Name = 'Battery';  Cmd = 'AT+CBC';   Regex = '\+CBC:\s*\d+,(\d+)' }
+    # ※ AT+CBC は IsatPhone 2 では使用禁止。送ると端末がしばらく無応答になり、
+    #   後続のコマンドも返らなくなる (2026-10-14 Probe で確認)
 )
