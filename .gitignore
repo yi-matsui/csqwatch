@@ -10,6 +10,8 @@ app/probe_[0-9]*.txt
 
 # 手元の設定 (COM 番号・発信先)。ひな形は Config.sample.ps1
 app/Config.ps1
+# 発信試験のタイムテーブル (着信番号が入る。画面で編集)
+app/CallTable.json
 
 # 監視画面用の専用ブラウザプロファイル (Browser.ps1 が作る)
 app/profile_*/

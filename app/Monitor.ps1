@@ -10,6 +10,7 @@
 #   ・多重起動防止: 2 つ目は起動しない。起動中の情報は logs\monitor_running.txt
 #   ・画面は社外監視とは別のブラウザ・専用プロファイルで開く (Browser.ps1)
 #   ・社外監視 (VPN) の窓が最優先。Monitor は CPU 優先度「通常以下」で動く
+#   ・発信試験: 24 個のタイムテーブル (CallTable.json、画面で編集)。結果は logs\call_yyyyMM.csv
 # ============================================================
 param(
     [switch]$Mock,
@@ -35,6 +36,11 @@ if (-not $AtIoExe) { $AtIoExe = 'AtIo.exe' }      # 旧 Config.ps1 ($IsatIoExe) 
 if ($IntervalSec -le 0) {
     if ($Mock) { $IntervalSec = $MockPollSec } else { $IntervalSec = $PollSec }
 }
+
+# 受信グラフに残す点数。$HistoryHours (既定 24 時間) と取得周期から決める (上限 3000 点)。
+# 旧版の Config.ps1 の $HistoryMax (30 など) は使わない。
+if (-not $HistoryHours -or [double]$HistoryHours -le 0) { $HistoryHours = 24 }
+$HistoryMax = [int][Math]::Min(3000, [Math]::Ceiling([double]$HistoryHours * 3600 / [Math]::Max(1, $IntervalSec)) + 1)
 
 $LogPath = Join-Path $Dir $LogDir
 if (-not (Test-Path -LiteralPath $LogPath)) { New-Item -ItemType Directory -Path $LogPath -Force | Out-Null }
@@ -146,14 +152,15 @@ function Format-Response {
 
 # Invoke-At を包んで、送信・応答・所要時間・AtIo の残留を記録する
 function Invoke-AtLog {
-    param([string]$Cmd, [int]$Wait, [string]$After = '')
+    param([string]$Cmd, [int]$Wait, [string]$After = '', [string]$During = '', [int]$DuringEvery = 5)
     $left = @(Get-Process -Name 'AtIo' -ErrorAction SilentlyContinue).Count
     if ($left -gt 0) { Write-TestLog 'WARN' ('AtIo.exe が残っています: ' + $left + ' 個') }
     $info = $Cmd + '  wait=' + $Wait + 's'
     if ($After) { $info += '  after=' + $After }
+    if ($After -and $During) { $info += '  during=' + $During + ' every ' + $DuringEvery + 's' }
     Write-TestLog 'CMD' $info
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    if ($After) { $res = Invoke-At $Cmd $Wait $After } else { $res = Invoke-At $Cmd $Wait }
+    if ($After) { $res = Invoke-At $Cmd $Wait $After $During $DuringEvery } else { $res = Invoke-At $Cmd $Wait }
     $sw.Stop()
     Write-TestLog 'RSP' ($Cmd + '  ' + $sw.ElapsedMilliseconds + 'ms  ' + (Format-Response $res))
     return $res
@@ -186,27 +193,33 @@ function Add-CsvLine {
 }
 
 function Import-History {
-    $p = Get-CsvPath (Get-Date)
-    if (-not (Test-Path -LiteralPath $p)) {
-        # 名称変更 (IsatMon → CsqWatch) 前の CSV があれば、そこから復元する (読むだけ)
-        $old = Join-Path $LogPath ('isat_' + (Get-Date).ToString('yyyyMM') + '.csv')
-        if (-not (Test-Path -LiteralPath $old)) { return }
-        $p = $old
-        Write-TestLog 'INFO' ('旧名の CSV から履歴を復元: ' + $old)
+    # 先月と今月の CSV から、$HistoryHours 時間以内の行を読んでグラフの履歴を復元する。
+    # 名称変更 (IsatMon → CsqWatch) 前の isat_YYYYMM.csv も、同じ月の csq_ がなければ読む (読むだけ)
+    $now = Get-Date
+    $cutoff = $now.AddHours(-[double]$HistoryHours).ToString('yyyy-MM-dd HH:mm:ss')
+    $files = @()
+    foreach ($d in @($now.AddMonths(-1), $now)) {
+        $p = Get-CsvPath $d
+        if (-not (Test-Path -LiteralPath $p)) {
+            $old = Join-Path $LogPath ('isat_' + $d.ToString('yyyyMM') + '.csv')
+            if (Test-Path -LiteralPath $old) { $p = $old; Write-TestLog 'INFO' ('旧名の CSV から履歴を復元: ' + $old) } else { continue }
+        }
+        $files += $p
     }
-    $lines = Get-Content -LiteralPath $p -Encoding UTF8 | Select-Object -Last 200
-    foreach ($l in $lines) {
-        $c = $l -split ','
-        $v = 0
-        if ($c.Length -ge 4 -and [int]::TryParse($c[1], [ref]$v)) {
-            $ok = -not ($c[2] -eq 'N/A' -or $c[2] -eq '取得失敗')   # 3 列目で取得失敗を見分ける
-            [void]$History.Add(@{ t = $c[0]; r = $v; ok = $ok })
+    foreach ($p in $files) {
+        foreach ($l in (Get-Content -LiteralPath $p -Encoding UTF8)) {
+            $c = $l -split ','
+            $v = 0
+            if ($c.Length -ge 4 -and [int]::TryParse($c[1], [ref]$v) -and $c[0] -ge $cutoff) {
+                $ok = -not ($c[2] -eq 'N/A' -or $c[2] -eq '取得失敗')   # 3 列目で取得失敗を見分ける
+                [void]$History.Add(@{ t = $c[0]; r = $v; ok = $ok })
+            }
         }
     }
     while ($History.Count -gt $HistoryMax) { $History.RemoveAt(0) }
     $lastT = '--'
     if ($History.Count -gt 0) { $lastT = $History[$History.Count - 1].t }
-    Write-TestLog 'INFO' ('履歴読込: ' + $History.Count + ' 件  最終=' + $lastT)
+    Write-TestLog 'INFO' ('履歴読込: ' + $History.Count + ' 件 (' + $HistoryHours + ' 時間以内、最大 ' + $HistoryMax + ' 点)  最終=' + $lastT)
 }
 
 # ---------------- data.js (画面用) ----------------
@@ -218,7 +231,28 @@ function Write-Data {
         elseif ($r -eq 99)    { $r = 0 }       # 端末が返した圏外 (99) は 0 で描く
         $hist += @{ t = $h.t; r = $r }
     }
+    # 発信試験: タイムテーブル・反映の状態・今日の結果
+    $todayStr = (Get-Date).ToString('yyyy-MM-dd')
+    $todayRes = @($script:CallResults | Where-Object { $_.t.StartsWith($todayStr) })
+    $okN = @($todayRes | Where-Object { $_.result -eq '成功' }).Count
+    $call = @{
+        enabled         = $script:CallTable.enabled
+        durationSec     = $script:CallTable.durationSec
+        savedAt         = $script:CallTable.savedAt
+        slots           = @($script:CallTable.slots)
+        duringEverySec  = [int]$CallDuringEverySec
+        appliedAt       = $script:CallTableInfo.appliedAt
+        source          = $script:CallTableInfo.source
+        error           = $script:CallTableInfo.error
+        errorAt         = $script:CallTableInfo.errorAt
+        rejectedSavedAt = $script:CallTableInfo.rejectedSavedAt
+        inbox           = [string]$script:CallInbox
+        today           = $todayRes
+        todayTotal      = $todayRes.Count
+        todayOk         = $okN
+    }
     $obj = @{
+        call        = $call
         mock        = [bool]$Mock
         intervalSec = $IntervalSec
         rssiMax     = $RssiMax
@@ -309,14 +343,293 @@ function Invoke-Poll {
     Write-Host ($nowStr + '  CSQ=' + $dbm + '  BER=' + $ber + '  ' + $reg)
 }
 
-# ---------------- 定時試験発信 ----------------
+# ---------------- 発信試験 (24 個のタイムテーブル) ----------------
+#   タイムテーブルは app\CallTable.json。監視画面の「発信試験」で編集し、「保存」で
+#   csqwatch_calltable.json がダウンロードフォルダに保存される。Monitor はそれを 5 秒ごとに探して取り込む。
+#   試験 1 回の流れ: 発信直前の AT+CSQ → ATD<番号>; (通話中も AT+CSQ) → ATH → 切断直後の AT+CSQ
+#   成否は ATD の応答で判定する (OK なら成功。ERROR / +CME ERROR / BUSY / NO CARRIER などは失敗)。
+$CallTablePath = Join-Path $Dir 'CallTable.json'
+$CallHistDir   = Join-Path $LogPath 'calltable_history'
+if ($null -eq $CallDuringEverySec) { $CallDuringEverySec = 5 }
+if ($null -eq $CallNumberAllow)    { $CallNumberAllow = @() }
+$script:CallTable     = $null
+$script:CallTableInfo = @{ appliedAt = ''; source = ''; error = ''; errorAt = ''; rejectedSavedAt = '' }
+$script:CallResults   = New-Object System.Collections.ArrayList
+$script:InboxCheckAt  = [datetime]::MinValue
+$script:InboxDone     = @{}
+
+# 画面で保存したタイムテーブルを探すフォルダ (既定はダウンロードフォルダ)
+function Get-CallInbox {
+    if ($CallTableInbox) { return [string]$CallTableInbox }
+    try {
+        $p = (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path
+        if ($p -and (Test-Path -LiteralPath $p)) { return $p }
+    } catch { }
+    $h = $env:USERPROFILE
+    if (-not $h) { $h = $HOME }
+    return (Join-Path $h 'Downloads')
+}
+
+# 初期のタイムテーブル: 各時の 01 分、番号は $TestNumber、すべて OFF。
+# 旧版の $CallTimes があれば、その時刻の行を ON にして発信試験を有効にする。
+function New-DefaultCallTable {
+    $slots = @()
+    for ($h = 0; $h -lt 24; $h++) {
+        $slots += [ordered]@{ hour = $h; time = ('{0:D2}:01' -f $h); number = [string]$TestNumber; on = $false }
+    }
+    $en = $false
+    foreach ($ct in @($CallTimes)) {
+        if ([string]$ct -match '^([01]\d|2[0-3]):([0-5]\d)$') {
+            $h = [int]$Matches[1]
+            $slots[$h].time = [string]$ct
+            $slots[$h].on = $true
+            $en = $true
+        }
+    }
+    $dur = 20
+    if ($CallDuration) { $dur = [int]$CallDuration }
+    return [ordered]@{ version = 1; enabled = $en; durationSec = $dur; savedAt = ''; slots = $slots }
+}
+
+# JSON から読んだタイムテーブルを確かめて、決まった形にする。おかしければ例外 (理由つき)
+function ConvertTo-CallTable {
+    param($Obj)
+    if ($null -eq $Obj -or $null -eq $Obj.slots) { throw 'タイムテーブルの形式が正しくありません (slots がない)' }
+    $in = @($Obj.slots)
+    if ($in.Count -ne 24) { throw ('行の数が 24 ではありません (' + $in.Count + ' 行)') }
+    $dur = 20
+    if ($null -ne $Obj.durationSec -and [string]$Obj.durationSec -ne '') { $dur = [int]$Obj.durationSec }
+    if ($dur -lt 5 -or $dur -gt 120) { throw ('呼出秒数は 5〜120 にしてください (' + $dur + ')') }
+    $slots = @()
+    $seen = @{}
+    for ($h = 0; $h -lt 24; $h++) {
+        $s = $in[$h]
+        $row = '' + $h + ' 時の行'
+        $time = ([string]$s.time).Trim()
+        if ($time -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw ($row + ': 時刻が正しくありません (' + $time + ')') }
+        $num = ([string]$s.number).Trim() -replace '[\s\-]', ''
+        $on = ($s.on -eq $true)
+        if ($on) {
+            if ($num -notmatch '^\+?\d{3,20}$') { throw ($row + ': 着信番号が正しくありません (' + $num + ')') }
+            if (@($CallNumberAllow).Count -gt 0 -and @($CallNumberAllow) -notcontains $num) {
+                throw ($row + ': 許可されていない番号です (' + $num + ')。Config.ps1 の $CallNumberAllow を確認してください')
+            }
+            if ($seen.ContainsKey($time)) { throw ($row + ': 時刻 ' + $time + ' が ' + $seen[$time] + ' 時の行と重なっています') }
+            $seen[$time] = $h
+        }
+        $slots += [ordered]@{ hour = $h; time = $time; number = $num; on = $on }
+    }
+    return [ordered]@{ version = 1; enabled = ($Obj.enabled -eq $true); durationSec = $dur; savedAt = [string]$Obj.savedAt; slots = $slots }
+}
+
+function Save-CallTable {
+    try {
+        $json = ConvertTo-Json -InputObject $script:CallTable -Depth 5
+        [System.IO.File]::WriteAllText($CallTablePath, $json, $Utf8NoBom)
+    } catch {
+        Write-TestLog 'ERR' ('CallTable.json を保存できません: ' + $_.Exception.Message)
+    }
+}
+
+function Get-CallTableSummary {
+    $t = $script:CallTable
+    $on = @($t.slots | Where-Object { $_.on })
+    $times = ($on | ForEach-Object { $_.time }) -join ','
+    return ('有効=' + $t.enabled + '  ON=' + $on.Count + '  呼出=' + $t.durationSec + 's  通話中測定=' + $CallDuringEverySec + 's  時刻=' + $times)
+}
+
+function Import-CallTable {
+    if (Test-Path -LiteralPath $CallTablePath) {
+        try {
+            $obj = [System.IO.File]::ReadAllText($CallTablePath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+            $script:CallTable = ConvertTo-CallTable $obj
+            Write-TestLog 'INFO' ('タイムテーブル読込: ' + (Get-CallTableSummary))
+        } catch {
+            # 壊れたファイルは上書きせずに残し、発信試験は止めておく
+            $script:CallTable = New-DefaultCallTable
+            $script:CallTable.enabled = $false
+            $script:CallTableInfo.error = 'CallTable.json を読めません。発信試験は停止中です: ' + $_.Exception.Message
+            $script:CallTableInfo.errorAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+            Write-TestLog 'WARN' $script:CallTableInfo.error
+        }
+    } else {
+        $script:CallTable = New-DefaultCallTable
+        Save-CallTable
+        Write-TestLog 'INFO' ('タイムテーブルを新規作成: ' + (Get-CallTableSummary))
+    }
+}
+
+# 画面で保存されたタイムテーブル (csqwatch_calltable*.json) を探して取り込む。
+# 取り込んだファイルは logs\calltable_history\ へ移す (誰がいつ変えたかの記録にもなる)。
+function Receive-CallTable {
+    $dirs = @($script:CallInbox, $Dir) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
+    $files = @()
+    foreach ($d in $dirs) {
+        $files += @(Get-ChildItem -LiteralPath $d -Filter 'csqwatch_calltable*.json' -File -ErrorAction SilentlyContinue)
+    }
+    $files = @($files | Where-Object { -not $script:InboxDone.ContainsKey($_.FullName + '|' + $_.LastWriteTime.Ticks) } | Sort-Object LastWriteTime)
+    if ($files.Count -eq 0) { return }
+    $newest = $files[$files.Count - 1]
+    if (-not (Test-Path -LiteralPath $CallHistDir)) { New-Item -ItemType Directory -Path $CallHistDir -Force | Out-Null }
+    $stamp = (Get-Date).ToString('yyyyMMdd_HHmmss')
+    $ok = $false
+    $obj = $null
+    try {
+        $obj = [System.IO.File]::ReadAllText($newest.FullName, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        $tbl = ConvertTo-CallTable $obj
+        $script:CallTable = $tbl
+        Save-CallTable
+        $script:CallTableInfo = @{ appliedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); source = $newest.Name; error = ''; errorAt = ''; rejectedSavedAt = '' }
+        Write-TestLog 'INFO' ('タイムテーブルを取り込み: ' + $newest.FullName + '  savedAt=' + $tbl.savedAt + '  ' + (Get-CallTableSummary))
+        Write-Host ((Get-Date).ToString('HH:mm:ss') + '  タイムテーブルを更新しました  ' + (Get-CallTableSummary)) -ForegroundColor Cyan
+        $ok = $true
+    } catch {
+        $script:CallTableInfo.error = 'タイムテーブルを取り込めませんでした: ' + $_.Exception.Message
+        $script:CallTableInfo.errorAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+        $script:CallTableInfo.rejectedSavedAt = ''
+        if ($obj -and $obj.savedAt) { $script:CallTableInfo.rejectedSavedAt = [string]$obj.savedAt }
+        Write-TestLog 'WARN' ($script:CallTableInfo.error + '  file=' + $newest.FullName)
+        Write-Host $script:CallTableInfo.error -ForegroundColor Yellow
+    }
+    foreach ($f in $files) {
+        $script:InboxDone[$f.FullName + '|' + $f.LastWriteTime.Ticks] = $true
+        $suffix = ''
+        if (-not $ok -and $f.FullName -eq $newest.FullName) { $suffix = '.rejected' }
+        if ($f.FullName -ne $newest.FullName) { $suffix = '.old' }
+        try {
+            Move-Item -LiteralPath $f.FullName -Destination (Join-Path $CallHistDir ($stamp + '_' + $f.Name + $suffix)) -Force -ErrorAction Stop
+        } catch {
+            Write-TestLog 'WARN' ('取り込んだファイルを移動できません (そのまま残します): ' + $f.FullName + '  ' + $_.Exception.Message)
+        }
+    }
+    Write-Data
+}
+
+# 応答から最初の +CSQ: <rssi>,<ber> を取り出す (なければ $null)
+function Get-CsqValue {
+    param([string]$Res)
+    $m = [regex]::Match($Res, '\+CSQ:\s*(\d+)\s*,\s*(\d+)')
+    if (-not $m.Success) { return $null }
+    return @{ r = [int]$m.Groups[1].Value; b = [int]$m.Groups[2].Value }
+}
+
+# 発信の応答を判定する。AtIo.exe の区切り行 (--- during / --- after) で、ATD の応答・通話中・切断を分ける
+function Get-CallJudgement {
+    param([string]$Res)
+    $j = @{ result = '失敗'; code = ''; samples = @() }
+    $afterIdx = $Res.IndexOf('--- after ')
+    $callPart = $Res
+    if ($afterIdx -ge 0) { $callPart = $Res.Substring(0, $afterIdx) }
+    $segs = [regex]::Split($callPart, '--- during [^\r\n]*')
+    $atd = $segs[0]
+    for ($k = 1; $k -lt $segs.Count; $k++) {
+        $v = Get-CsqValue $segs[$k]
+        if ($v) { $j.samples += $v }
+    }
+    $first = [regex]::Match($atd, '(?m)^(OK|ERROR|\+CM[ES] ERROR:[^\r\n]*|NO CARRIER|BUSY|NO ANSWER|NO DIALTONE)\s*$')
+    $end   = [regex]::Match($callPart, '(?m)^(NO CARRIER|BUSY|NO ANSWER|NO DIALTONE)\s*$')
+    if ($Res -match 'IO Error') {
+        $j.code = ((Format-Response $Res) -split "`n")[0]
+    } elseif (-not $first.Success) {
+        $j.code = '応答なし'
+    } elseif ($first.Groups[1].Value -ne 'OK') {
+        $j.code = $first.Groups[1].Value.Trim()
+    } elseif ($afterIdx -ge 0 -and $end.Success) {
+        $j.code = $end.Groups[1].Value + ' (呼出中に終了)'
+    } else {
+        $j.result = '成功'
+        $j.code = 'OK'
+    }
+    return $j
+}
+
+function Get-CallCsvPath {
+    param([datetime]$d)
+    return (Join-Path $LogPath ('call_' + $d.ToString('yyyyMM') + '.csv'))
+}
+
+$CallCsvHeader = 'Timestamp,Slot,Time,Number,Result,Code,RssiBefore,BerBefore,RssiDuringAvg,RssiDuringMin,BerDuringMax,DuringSamples,RssiAfter,BerAfter,DurationSec'
+
+function Add-CallCsvLine {
+    param([datetime]$d, [string]$line)
+    try {
+        $p = Get-CallCsvPath $d
+        if (-not (Test-Path -LiteralPath $p)) {
+            [System.IO.File]::WriteAllText($p, $CallCsvHeader + "`r`n", $Utf8Bom)
+            Write-TestLog 'INFO' ('発信試験 CSV 新規作成: ' + $p)
+        }
+        [System.IO.File]::AppendAllText($p, $line + "`r`n", $Utf8Bom)
+    } catch {
+        Write-Host ('発信試験 CSV 書き込み失敗 (Excel で開いていませんか?): ' + $_.Exception.Message) -ForegroundColor Yellow
+        Write-TestLog 'ERR' ('発信試験 CSV 書き込み失敗: ' + $_.Exception.Message)
+    }
+}
+
+# 値が無いときは空欄、ある値はそのまま (CSV と画面で共通)
+function Get-Cell { param($v) if ($null -eq $v) { return '' } return [string]$v }
+
+# 起動時に、今日の発信試験の結果を CSV から読み戻す (画面の「今日の結果」のため)
+function Import-CallResults {
+    $p = Get-CallCsvPath (Get-Date)
+    if (-not (Test-Path -LiteralPath $p)) { return }
+    $today = (Get-Date).ToString('yyyy-MM-dd')
+    foreach ($l in (Get-Content -LiteralPath $p -Encoding UTF8)) {
+        if (-not $l.StartsWith($today)) { continue }
+        $c = $l -split ','
+        if ($c.Count -lt 15) { continue }
+        [void]$script:CallResults.Add(@{
+            t = $c[0]; slot = [int]$c[1]; time = $c[2]; number = $c[3]; result = $c[4]; code = $c[5]
+            rb = $c[6]; bb = $c[7]; rdAvg = $c[8]; rdMin = $c[9]; bdMax = $c[10]; n = $c[11]; ra = $c[12]; ba = $c[13]; dur = $c[14]
+        })
+    }
+    Write-TestLog 'INFO' ('今日の発信試験の結果を読込: ' + $script:CallResults.Count + ' 件')
+}
+
 function Invoke-TestCall {
-    param([datetime]$now)
-    Write-Host ($now.ToString('HH:mm') + '  試験発信 ' + $TestNumber + ' (' + $CallDuration + ' 秒)')
-    Write-TestLog 'INFO' ('試験発信 開始  ' + $TestNumber + '  ' + $CallDuration + 's')
-    $callRes = Invoke-AtLog ('ATD' + $TestNumber + ';') $CallDuration 'ATH'
-    Write-TestLog 'INFO' '試験発信 終了'
-    Add-CsvLine $now ($now.ToString('yyyy-MM-dd HH:mm:ss') + ',,,,,TestCall ' + $TestNumber)
+    param($Slot, [datetime]$now)
+    $num = [string]$Slot.number
+    $dur = [int]$script:CallTable.durationSec
+    $nowStr = $now.ToString('yyyy-MM-dd HH:mm:ss')
+    Write-Host ($now.ToString('HH:mm') + '  試験発信 ' + $num + ' (' + $dur + ' 秒)')
+    Write-TestLog 'INFO' ('試験発信 開始  ' + $Slot.hour + ' 時の行  ' + $Slot.time + '  ' + $num + '  ' + $dur + 's')
+
+    # 1. 発信直前
+    $before = Get-CsqValue (Invoke-AtLog 'AT+CSQ' 3)
+    # 2. 発信 (通話中も AT+CSQ)・切断
+    $during = ''
+    if ([int]$CallDuringEverySec -gt 0) { $during = 'AT+CSQ' }
+    $res = [string](Invoke-AtLog ('ATD' + $num + ';') $dur 'ATH' $during ([int]$CallDuringEverySec))
+    # 3. 切断直後
+    $after = Get-CsqValue (Invoke-AtLog 'AT+CSQ' 3)
+
+    $j = Get-CallJudgement $res
+    $rs = @($j.samples | Where-Object { $_.r -ne 99 } | ForEach-Object { $_.r })
+    $bs = @($j.samples | Where-Object { $_.b -ne 99 } | ForEach-Object { $_.b })
+    $rdAvg = $null; $rdMin = $null; $bdMax = $null
+    if ($rs.Count -gt 0) {
+        $rdAvg = [Math]::Round((($rs | Measure-Object -Average).Average), 1)
+        $rdMin = ($rs | Measure-Object -Minimum).Minimum
+    }
+    if ($bs.Count -gt 0) { $bdMax = ($bs | Measure-Object -Maximum).Maximum }
+    $rb = $null; $bb = $null; $ra = $null; $ba = $null
+    if ($before) { $rb = $before.r; $bb = $before.b }
+    if ($after)  { $ra = $after.r;  $ba = $after.b }
+
+    $r = @{
+        t = $nowStr; slot = [int]$Slot.hour; time = [string]$Slot.time; number = $num; result = $j.result; code = $j.code
+        rb = (Get-Cell $rb); bb = (Get-Cell $bb); rdAvg = (Get-Cell $rdAvg); rdMin = (Get-Cell $rdMin); bdMax = (Get-Cell $bdMax)
+        n = [string]@($j.samples).Count; ra = (Get-Cell $ra); ba = (Get-Cell $ba); dur = [string]$dur
+    }
+    [void]$script:CallResults.Add($r)
+    $codeCsv = $j.code -replace ',', ' '
+    Add-CallCsvLine $now (($nowStr, $r.slot, $r.time, $num, $r.result, $codeCsv, $r.rb, $r.bb, $r.rdAvg, $r.rdMin, $r.bdMax, $r.n, $r.ra, $r.ba, $r.dur) -join ',')
+    Add-CsvLine $now ($nowStr + ',,,,,TestCall ' + $num + ' ' + $j.result)
+    Write-TestLog 'INFO' ('試験発信 終了  ' + $j.result + '  ' + $j.code + '  直前=' + $r.rb + '/' + $r.bb + '  通話中(平均/最小/ber最大/回数)=' + $r.rdAvg + '/' + $r.rdMin + '/' + $r.bdMax + '/' + $r.n + '  直後=' + $r.ra + '/' + $r.ba)
+    if ($during -and $j.result -eq '成功' -and @($j.samples).Count -eq 0) {
+        Write-TestLog 'WARN' '通話中の AT+CSQ に応答がありません (機器が通話中に AT コマンドを受け付けない可能性)'
+    }
+    Write-Host ($now.ToString('HH:mm') + '  試験発信 ' + $j.result + ' (' + $j.code + ')  rssi 直前=' + $r.rb + ' 通話中=' + $r.rdAvg + ' 直後=' + $r.ra)
+    Write-Data
 }
 
 # ---------------- メイン ----------------
@@ -331,9 +644,13 @@ try {
     $ioStr = $io.LastWriteTime.ToString('yyyy-MM-dd HH:mm') + ' ' + $io.Length + 'B'
 } catch { }
 Write-TestLog 'INFO' ('START  pid=' + $PID + '  ps=' + $PSVersionTable.PSVersion + '  user=' + $env:USERNAME + '  boot=' + $bootStr)
-Write-TestLog 'INFO' ('設定  mode=' + $modeText + '  interval=' + $IntervalSec + 's  CallTimes=' + ($CallTimes -join ',') + '  CallDuration=' + $CallDuration + 's  Device=' + $DeviceName + '  RssiMax=' + $RssiMax + '  Extras=' + @($Extras).Count + '  AtIo=' + $ioStr)
+Write-TestLog 'INFO' ('設定  mode=' + $modeText + '  interval=' + $IntervalSec + 's  history=' + $HistoryHours + 'h/' + $HistoryMax + '点  Device=' + $DeviceName + '  RssiMax=' + $RssiMax + '  Extras=' + @($Extras).Count + '  AtIo=' + $ioStr)
 
 Import-History
+$script:CallInbox = Get-CallInbox
+Write-TestLog 'INFO' ('タイムテーブルの受け取り先: ' + $script:CallInbox)
+Import-CallTable
+Import-CallResults
 Write-Data
 Write-Host '===================================================='
 Write-Host (' CsqWatch   device=' + $DeviceName + '   mode=' + $modeText + '  interval=' + $IntervalSec + 's')
@@ -349,10 +666,21 @@ try {
     while ($true) {
         $now = Get-Date
         $key = $now.ToString('yyyyMMdd_HHmm')
-        if (($CallTimes -contains $now.ToString('HH:mm')) -and ($LastCallKey -ne $key)) {
-            $LastCallKey = $key
-            Invoke-TestCall $now
-            $next = Get-Date                     # 発信の直後に 1 回取得する
+        # 画面で保存されたタイムテーブルを 5 秒ごとに探す
+        if (($now - $script:InboxCheckAt).TotalSeconds -ge 5) {
+            $script:InboxCheckAt = $now
+            Receive-CallTable
+        }
+        # 発信試験 (同じ分に 2 度は発信しない)
+        if ($script:CallTable.enabled -and ($LastCallKey -ne $key)) {
+            $hm = $now.ToString('HH:mm')
+            $slot = $null
+            foreach ($s in $script:CallTable.slots) { if ($s.on -and $s.time -eq $hm) { $slot = $s; break } }
+            if ($slot) {
+                $LastCallKey = $key
+                Invoke-TestCall $slot $now
+                $next = Get-Date                 # 発信の直後に 1 回取得する
+            }
         }
         if ($now -ge $next) {
             $late = [int]($now - $next).TotalSeconds

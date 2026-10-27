@@ -27,32 +27,51 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 | `Show-Dashboard` | なし | なし | `Open-Dashboard` を呼び、結果を試験ログに書く。開けなければコンソールに案内を出す | 起動時、二重起動時 |
 | `Test-InnerException` | `Ex`(例外)、`Type`(型) | 真偽値 | 例外とその内側の例外をたどり、指定の型が含まれるかを調べる。Mutex の放棄(`AbandonedMutexException`)の判定に使う | 二重起動の確認 |
 | `Format-Response` | `Res`(応答) | 文字列 | ログ用に応答を整える。PowerShell 5.1 の「発生場所 …」などの飾りと `AtIo.exe : ` の前置きを除く。AT の応答(`+CSQ:` など)は残す。空なら `(空応答)` | `Invoke-AtLog`、`Invoke-Poll` |
-| `Invoke-AtLog` | `Cmd`、`Wait`(秒)、`After`(後続コマンド、省略可) | 応答(整形前) | `Invoke-At` を包み、送信(`CMD`)・応答と所要時間(`RSP`)を試験ログに残す。`AtIo.exe` が残っていれば `WARN` | `Invoke-Poll`、`Invoke-TestCall` |
+| `Invoke-AtLog` | `Cmd`、`Wait`(秒)、`After`(後続コマンド)、`During`(通話中のコマンド)、`DuringEvery`(秒)。後ろ 3 つは省略可 | 応答(整形前) | `Invoke-At` を包み、送信(`CMD`)・応答と所要時間(`RSP`)を試験ログに残す。`AtIo.exe` が残っていれば `WARN` | `Invoke-Poll`、`Invoke-TestCall` |
 | `Get-CsvPath` | `d`(日時) | パス | その月の CSV のパス `logs\csq_YYYYMM.csv` を返す | `Add-CsvLine`、`Import-History` |
 | `Add-CsvLine` | `d`(日時)、`line`(1 行) | なし | CSV に 1 行追記する。ファイルがなければ見出し付きで作る。失敗したら(Excel で開いている場合など)警告を出し、試験ログに `ERR` | `Invoke-Poll`、`Invoke-TestCall` |
-| `Import-History` | なし | なし | 起動時に、その月の CSV の末尾 200 行からグラフの履歴を復元する。新しい CSV がなければ旧名 `isat_YYYYMM.csv` を読む。3 列目が `N/A`・`取得失敗` の行は取得失敗として扱う | 起動時 |
-| `Write-Data` | なし | なし | 画面用の `data.js` を書き出す(一時ファイルに書いてから置き換え)。履歴は、取得失敗を `null`、端末の圏外(99)を `0` にする | 起動時、`Invoke-Poll` |
+| `Import-History` | なし | なし | 起動時に、先月と今月の CSV から `$HistoryHours` 時間以内の行を読んでグラフの履歴を復元する。新しい CSV がなければ旧名 `isat_YYYYMM.csv` を読む。3 列目が `N/A`・`取得失敗` の行は取得失敗として扱う | 起動時 |
+| `Write-Data` | なし | なし | 画面用の `data.js` を書き出す(一時ファイルに書いてから置き換え)。履歴は、取得失敗を `null`、端末の圏外(99)を `0` にする。発信試験のタイムテーブル・取り込みの状態・今日の結果も入れる | 起動時、`Invoke-Poll`、`Invoke-TestCall`、`Receive-CallTable` |
 | `Invoke-Poll` | なし | なし | 1 回分の取得。COM ポート一覧の確認 → `AT+CSQ` → `AT+CREG?` → `$Extras` の順に送り、解析して CSV・試験ログ・`data.js` に反映し、コンソールに 1 行表示する | メインループ |
-| `Invoke-TestCall` | `now`(日時) | なし | 定時試験発信。`ATD<番号>;` を送り、`$CallDuration` 秒後に `ATH` で切る。応答を試験ログに、発信の記録を CSV に残す | メインループ |
+
+### Monitor.ps1 の発信試験の関数
+
+| 関数 | 引数 | 戻り値 | 役割 | 呼び出し元 |
+|---|---|---|---|---|
+| `Get-CallInbox` | なし | パス | 画面で保存したタイムテーブルを探すフォルダ。`$CallTableInbox`、なければダウンロードフォルダ(`shell:Downloads`)、それも取れなければ `%USERPROFILE%\Downloads` | 起動時 |
+| `New-DefaultCallTable` | なし | タイムテーブル | 初期のタイムテーブル(各時 01 分・番号 `$TestNumber`・すべて OFF)。旧版の `$CallTimes` の時刻の行は ON にして有効にする | `Import-CallTable` |
+| `ConvertTo-CallTable` | `Obj`(JSON から読んだもの) | タイムテーブル | 24 行・時刻の形式・ON の行の時刻の重なり・番号の形式・呼出秒数・`$CallNumberAllow` を確かめて、決まった形にする。おかしければ理由つきの例外 | `Import-CallTable`、`Receive-CallTable` |
+| `Save-CallTable` | なし | なし | 今のタイムテーブルを `CallTable.json` に書く | `Import-CallTable`、`Receive-CallTable` |
+| `Get-CallTableSummary` | なし | 文字列 | 試験ログ用の要約(有効・ON の数・呼出秒数・時刻) | 各所 |
+| `Import-CallTable` | なし | なし | 起動時に `CallTable.json` を読む。なければ初期のものを作る。壊れていれば上書きせず、発信試験を止めておく | 起動時 |
+| `Receive-CallTable` | なし | なし | 受け取り先と `app\` から `csqwatch_calltable*.json` を探し、最も新しいものを確かめて取り込む。取り込んだファイルは `logs\calltable_history\` へ移す | メインループ(5 秒ごと) |
+| `Get-CsqValue` | `Res`(応答) | `@{ r; b }` または `$null` | 応答から最初の `+CSQ: <rssi>,<ber>` を取り出す | `Invoke-TestCall`、`Get-CallJudgement` |
+| `Get-CallJudgement` | `Res`(発信の応答) | `@{ result; code; samples }` | 区切り行(`--- during` / `--- after`)で応答を分け、`ATD` の応答から成否を、通話中の部分から `AT+CSQ` の値の並びを取り出す | `Invoke-TestCall` |
+| `Get-CallCsvPath` | `d`(日時) | パス | その月の発信試験の CSV `logs\call_YYYYMM.csv` | `Add-CallCsvLine`、`Import-CallResults` |
+| `Add-CallCsvLine` | `d`、`line` | なし | 発信試験の CSV に 1 行追記する(なければ見出し付きで作る) | `Invoke-TestCall` |
+| `Get-Cell` | `v` | 文字列 | 値がなければ空欄、あればそのままの文字列(CSV と画面で共通) | `Invoke-TestCall` |
+| `Import-CallResults` | なし | なし | 起動時に、今日の発信試験の結果を CSV から読み戻す | 起動時 |
+| `Invoke-TestCall` | `Slot`(タイムテーブルの行)、`now`(日時) | なし | 発信試験 1 回分。直前の `AT+CSQ` → `ATD<番号>;`(通話中も `AT+CSQ`)→ `ATH` → 直後の `AT+CSQ`。判定して、発信試験の CSV・取得結果の CSV(印)・試験ログ・`data.js` に反映する | メインループ |
 
 ### Monitor.ps1 の関数以外の処理(上から順に)
 
 | 処理 | 内容 |
 |---|---|
-| 設定の読み込み | `Config.ps1` がなければ `Config.sample.ps1` からコピー。`Config.ps1`・`Common.ps1` を読み込む。`$RssiMax`・`$DeviceName`・`$AtIoExe` が未設定なら既定値を入れる |
+| 設定の読み込み | `Config.ps1` がなければ `Config.sample.ps1` からコピー。`Config.ps1`・`Common.ps1` を読み込む。`$RssiMax`・`$DeviceName`・`$AtIoExe`・`$HistoryHours` が未設定なら既定値を入れる。グラフの点の数(`$HistoryMax`)を `$HistoryHours` と取得周期から決める |
 | `trap` | 予期しないエラーで止まる直前に `ERR UNHANDLED`(行番号付き)を試験ログに残す |
 | 二重起動の確認 | Mutex `Global\CsqWatch` を取る。取れなければ監視画面を前面に出し、5 秒後に終了コード `3` で終わる |
 | 起動の準備 | `monitor_running.txt` を書く。窓のタイトルを「CsqWatch 稼働中」にする。CPU 優先度を「通常以下」にする |
 | 起動記録 | `START`(PID・PowerShell の版・PC の起動時刻)と設定値を試験ログに残す |
-| メインループ | 1 秒ごとに時刻を確認し、定時発信と周期取得を行う。周期が 10 秒を超えて遅れたら `WARN`(スリープの兆候) |
+| 起動時の読み込み | 取得結果の履歴(`Import-History`)、受け取り先(`Get-CallInbox`)、タイムテーブル(`Import-CallTable`)、今日の発信試験の結果(`Import-CallResults`) |
+| メインループ | 1 秒ごとに時刻を確認する。5 秒ごとにタイムテーブルの取り込みを確かめ(`Receive-CallTable`)、発信試験が有効で ON の行の時刻なら発信試験を行い(同じ分には 1 度だけ)、周期ごとに取得する。周期が 10 秒を超えて遅れたら `WARN`(スリープの兆候) |
 | `finally` | 止めたとき(Ctrl+C を含む)に `STOP` を残し、`monitor_running.txt` を消し、Mutex を解放する |
 
 ## Common.ps1(AT コマンド送信の共通部)
 
 | 関数 | 引数 | 戻り値 | 役割 | 呼び出し元 |
 |---|---|---|---|---|
-| `Invoke-At` | `Cmd`、`Wait`(秒、既定 3)、`After`(省略可) | 応答の文字列 | `AtIo.exe <Port> <Baud> <Cmd> <Wait> [After]` を呼び、標準出力と標準エラー出力をまとめて返す。`-Mock` のときは `Get-MockResponse` を返す。呼び出しに失敗したら `IO Error: …` を返す | `Invoke-AtLog`、`Probe.ps1` |
-| `Get-MockResponse` | `Cmd` | 応答の文字列 | `-Mock` 用の疑似応答。`AT+CSQ` は rssi 20〜50(IsatPhone 2 の実測付近)でゆらぐ値、`AT+CREG?` は rssi が 25 未満なら探索中。ほかに `AT+COPS?`・`AT+CBC`(実機の IsatPhone 2 では使用禁止)・`AT`・`ATH`。それ以外は `ERROR` | `Invoke-At` |
+| `Invoke-At` | `Cmd`、`Wait`(秒、既定 3)、`After`・`During`・`DuringEvery`(省略可。`During` は `After` があるときだけ渡す) | 応答の文字列 | `AtIo.exe <Port> <Baud> <Cmd> <Wait> [After] [During] [DuringEvery]` を呼び、標準出力と標準エラー出力をまとめて返す。`-Mock` のときは `Get-MockResponse` を返す。呼び出しに失敗したら `IO Error: …` を返す | `Invoke-AtLog`、`Probe.ps1` |
+| `Get-MockResponse` | `Cmd`、`Wait`、`After`、`During`、`DuringEvery` | 応答の文字列 | `-Mock` 用の疑似応答。`ATD` には `AtIo.exe` と同じ区切り行つきの応答を返す(8 割成功、残りは呼出中の `NO CARRIER`・`BUSY`・`+CME ERROR`。通話中は rssi が 3〜10 下がる)。`AT+CSQ` は rssi 20〜50(IsatPhone 2 の実測付近)でゆらぐ値、`AT+CREG?` は rssi が 25 未満なら探索中。ほかに `AT+COPS?`・`AT+CBC`(実機の IsatPhone 2 では使用禁止)・`AT`・`ATH`。それ以外は `ERROR` | `Invoke-At` |
 
 ## Browser.ps1(監視画面を開く)
 
@@ -77,9 +96,10 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 
 | メソッド・定義 | 役割 |
 |---|---|
-| `Main(string[] args)` | 引数を読み、COM ポートを 8N1・DTR/RTS ON で開く。`ATE0V1` を送って応答を捨て、コマンドを送り、受信した応答をそのまま標準出力へ出す。終了コード `0` 正常 / `1` 引数不足 / `2` I/O エラー |
+| `Main(string[] args)` | 引数を読み、COM ポートを 8N1・DTR/RTS ON で開く。`ATE0V1` を送って応答を捨て、コマンドを送り、受信した応答をそのまま標準出力へ出す。`DuringCmd` があれば、`Cmd` の終端行を受けてから一定間隔で送り、区切り行(`--- during` / `--- after`)を出す。終了コード `0` 正常 / `1` 引数不足 / `2` I/O エラー |
 | `IsHelp(string a)` | `-HELP` / `--HELP` / `-H` / `-?` / `/?` / `/HELP` かどうか(大文字小文字は区別しない) |
 | `Final`(正規表現) | 応答の終端行(`OK` / `ERROR` / `NO CARRIER` / `BUSY` / `NO ANSWER` / `NO DIALTONE` / `+CME ERROR:` / `+CMS ERROR:`)を、受信済みの全文から探す |
+| `CallEnd`(正規表現) | 通話が終わったことを示す行(`NO CARRIER` / `BUSY` / `NO ANSWER` / `NO DIALTONE`)。`DuringCmd` ありのとき、これを受けたら待ちを打ち切る |
 | `HelpText`(定数) | `-HELP` で表示する使い方 |
 
 ## index.html(画面、JavaScript)
@@ -88,9 +108,18 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 |---|---|
 | `$(id)` | `document.getElementById` の短縮 |
 | `setBadge(text, cls)` | 右上の状態表示(`LIVE` / `STALE` / `NO DATA` など)を変える |
-| `initChart()` | グラフ(Chart.js)を作り、`loadData` を 3 秒ごとに呼ぶように設定する |
+| `initChart()` | グラフ(Chart.js)を作り、`loadData` を 3 秒ごとに呼ぶように設定する。横軸のラベルは「時刻」と「月/日」の 2 段。スクロールと「最新へ」ボタンの処理も割り当てる |
+| `stickyYAxis`(Chart.js のプラグイン) | 描画のたびにグラフの左端(縦軸の目盛り)を `chartYAxis` の canvas に写し、横スクロールしても目盛りが左に残るようにする |
+| `isAtEnd()` | 受信グラフが右端(最新)を表示しているか |
+| `md(s)` / `hm(s)` | 日時の文字列から「月/日」・「時:分」を取り出す(横軸のラベル用) |
 | `loadData()` | `<script src="data.js?t=…">` を差し替えて読み込み、読めたら `render` を呼ぶ。読めなければ `NO DATA` |
-| `render(d)` | `window.CSQ_DATA` からカード・見出し(機器名)・グラフを更新する。取得失敗は `--` と赤の `取得失敗`、端末の 99 は `圏外 (99)`。グラフの縦軸は `rssiMax` に合わせる。最終更新が周期の 2 倍 + 10 秒より古ければ `STALE` |
+| `render(d)` | `window.CSQ_DATA` からカード・見出し(機器名)・グラフ・発信試験の欄を更新する。取得失敗は `--` と赤の `取得失敗`、端末の 99 は `圏外 (99)`。グラフの縦軸は `rssiMax` に合わせる。最終更新が周期の 2 倍 + 10 秒より古ければ `STALE` |
+| `renderCall(c)` | 発信試験の欄を描く。有効/停止・ON の数・今日の成功数、取り込みの状態(「反映済み」・取り込めなかった理由)、24 行の表(今日の結果・応答・rssi と BER の直前/通話中/直後・差) |
+| `openEditor()` / `closeEditor()` | タイムテーブルの編集欄を開く・閉じる(表示側の表と切り替える) |
+| `editorRows()` | 編集欄の 24 行の入力欄(ON・時刻・番号)をまとめて返す |
+| `saveEditor()` | 編集欄の内容を確かめ(Monitor と同じ確認)、確認の画面を出してから `csqwatch_calltable.json` をダウンロードとして保存する。保存した `savedAt` を覚えて、取り込まれたかを見る |
+| `initCall()` | 発信試験の欄のボタンに処理を割り当てる |
+| `esc` / `pad2` / `nowText` / `hhmm` / `setCallMsg` | 文字の置き換え・ゼロ埋め・現在日時・時刻だけ取り出す・欄の上のメッセージ |
 
 `index.html` の右上の「説明書」は `manual.html` へのリンクです(別の窓で開く)。
 

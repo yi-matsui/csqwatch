@@ -1,6 +1,6 @@
 # 設計メモ
 
-Author: yuichi(作成 2026-10-10 / 更新 2026-10-21)
+Author: yuichi(作成 2026-10-10 / 更新 2026-10-26)
 
 関数ごとの役割は [functions.md](functions.md)、AT コマンドは [at-command-table.md](at-command-table.md) を参照してください。
 
@@ -12,14 +12,18 @@ Monitor.bat ─► Monitor.ps1
                  │          監視画面を開く (Browser.ps1)
                  │
                  └─(1 秒ごとにループ)─┐
-                    ├─ 時刻が $CallTimes に一致 → AtIo.exe ... "ATD<番号>;" <秒> "ATH"
+                    ├─ 5 秒ごと                   → 受け取り先に csqwatch_calltable*.json があれば取り込む
+                    ├─ タイムテーブルの時刻       → "AT+CSQ" → AtIo.exe ... "ATD<番号>;" <秒> "ATH" "AT+CSQ" <間隔> → "AT+CSQ"
                     └─ 周期ごと                   → AtIo.exe ... "AT+CSQ" / "AT+CREG?" / $Extras
                          │
                          ├─► logs/csq_YYYYMM.csv      追記 (月別。取得結果)
+                         ├─► logs/call_YYYYMM.csv     追記 (月別。発信試験の結果)
+                         ├─► CallTable.json           タイムテーブル (取り込んだとき)
                          ├─► logs/test_YYYYMMDD.log   追記 (日別。試験ログ)
                          └─► data.js                  毎回まるごと書き換え (一時ファイル → 置換)
 
-index.html ──(3 秒ごと)── <script src="data.js?t=…"> を差し替えて読み込み → カードとグラフを更新
+index.html ──(3 秒ごと)── <script src="data.js?t=…"> を差し替えて読み込み → カード・グラフ・発信試験の表を更新
+index.html ──(「保存」)──► ダウンロードフォルダ\csqwatch_calltable.json  (Monitor が取り込む)
 ```
 
 ## 設計判断
@@ -33,12 +37,17 @@ URL にクエリ(`?t=…`)を付けてキャッシュを避けています。Edg
 
 ### C# は I/O だけ
 
-`AtIo.exe` は `AtIo.exe <Port> <BaudRate> <Cmd> [WaitSec] [AfterCmd]` で動き、応答を標準出力へそのまま出します。
+`AtIo.exe` は `AtIo.exe <Port> <BaudRate> <Cmd> [WaitSec] [AfterCmd] [DuringCmd] [DuringEverySec]` で動き、応答を標準出力へそのまま出します。
 コマンドの種類・応答の解釈・周期などの知識は持ちません。**C# を書き換える必要が出るのは、シリアル通信そのものを変えるときだけ**にしています。
 
 - 接続は 8N1、DTR/RTS を ON にして開き、開いた直後に `ATE0V1`(エコー OFF・文字応答)を送ってから、その応答を捨てます。
 - `AfterCmd` なし:応答の終端行(`OK` / `ERROR` / `NO CARRIER` / `+CME ERROR: n` など)を受信した時点で終了。`WaitSec` は上限です。終端は、これまでに受信した全文に対して判定するので、応答が途中で分割されても取りこぼしません。
 - `AfterCmd` あり:`WaitSec` 秒間受信を続け、その後 `AfterCmd` を送ります。試験発信(`ATD…;` → 呼出 → `ATH`)用です。
+- `DuringCmd` あり(`AfterCmd` と一緒のときだけ):`Cmd` の終端行を受信したあと、`DuringEverySec` 秒(既定 5、最小 2)ごとに `DuringCmd` を送ります。発信試験の通話中の `AT+CSQ` 用です。
+  - `Cmd`(`ATD`)の応答前には送りません。V.250 では、コマンドの実行中に文字を受け取ると実行を打ち切る機器があり、発信が中断されるためです。`ATD` に応答がなければ、通話中のコマンドは一度も送りません。
+  - 待ち時間の残りが 2 秒未満なら送りません(`AfterCmd` の直前に応答が重ならないように)。
+  - `NO CARRIER` / `BUSY` / `NO ANSWER` / `NO DIALTONE` を受信したら、待ちを打ち切って `AfterCmd` に進みます。
+  - 区切りとして、送る前に `--- during <コマンド>`、`AfterCmd` の前に `--- after <コマンド>` の行を標準出力へ出します。PowerShell 側はこれで「`ATD` の応答」「通話中」「切断」を分けます。`DuringCmd` を使わないときは区切りを出さないので、従来の出力と変わりません。
 - 終了コード:`0` 正常、`1` 引数不足、`2` I/O エラー(エラー内容は標準エラー出力に `IO Error: …` で出す)。
 
 ### COM ポートは開きっぱなしにしない
@@ -92,6 +101,35 @@ URL にクエリ(`?t=…`)を付けてキャッシュを避けています。Edg
 
 `AT+CSQ` の rssi の範囲は機器によって違います(GSM は 0〜31、IsatPhone 2 は 0〜55)。GSM の dBm 換算(`-113 + 2 × rssi`)は GSM 以外では意味を持たないので使わず、生の値を `値 / 最大値` で表示します。最大値は `Config.ps1` の `$RssiMax` で、グラフの縦軸もこれに合わせます。
 
+### 発信試験はタイムテーブルで動かし、画面で編集する
+
+- タイムテーブルは 24 行(各時 1 行)。行ごとに時刻・番号・ON/OFF、全体に「有効」と呼出秒数を持ち、`app\CallTable.json` に保存します。
+- **画面は `file://` の静的な HTML なので、ファイルを直接書けません。** そこで画面の「保存」は `csqwatch_calltable.json` をダウンロードとして保存し、Monitor が 5 秒ごとに受け取り先(既定はログオン中のユーザーのダウンロードフォルダ。`$CallTableInbox` で変更可。`app\` も見る)を探して取り込みます。Web サーバを置かない方針を保ったまま、人の手でファイルを移す手順をなくしています。
+- ブラウザはダウンロードの途中は `.crdownload` / `.part` などの別名で書くので、書きかけのファイルを取り込むことはありません。同じ名前が続くと `csqwatch_calltable (1).json` のようになるので、`csqwatch_calltable*.json` の中で最も新しいものを取り込み、ほかは古いものとして扱います。
+- 取り込む前に、24 行あるか・時刻の形式・ON の行どうしの時刻の重なり・番号の形式(`+` と数字 3〜20 桁。空白とハイフンは除く)・呼出秒数(5〜120)・発信してよい番号(`$CallNumberAllow`)を確かめます。1 つでもおかしければ**全体を取り込まず**、前のタイムテーブルのまま理由を画面と試験ログに出します。画面側でも保存の前に同じ確認をします。
+- 取り込んだファイルは `logs\calltable_history\日時_ファイル名` へ移します(取り込めなかったものは末尾に `.rejected`、古いものは `.old`)。いつ・どう変えたかの記録になります。
+- 画面は、保存したタイムテーブルの `savedAt` と、`data.js` の `call.savedAt`(取り込み済み)・`call.rejectedSavedAt`(取り込めなかった)を比べて、「反映済み」かどうかを出します。
+- `CallTable.json` が壊れていて読めないときは、上書きせずに残し、発信試験を止めた状態で動きます。
+- `CallTable.json` がまだないときは、各時 01 分・番号 `$TestNumber`・すべて OFF で作ります。旧版の `$CallTimes` があれば、その時刻の行を ON にして有効にします(移行用)。
+
+### 発信試験の成否と受信レベル
+
+- 1 回の試験は「発信直前の `AT+CSQ` → `ATD<番号>;`(通話中も `AT+CSQ`)→ `ATH` → 切断直後の `AT+CSQ`」です。
+- 送信中に端末が干渉を受けていないかを見るのが目的なので、通話中の rssi・BER を直前・直後と比べられるようにしています。画面の「差」(通話中の平均 − 直前)が大きなマイナスなら、送信中に受信が下がっています。
+- 成否は `ATD` の応答で判定します(`OK` なら成功)。`ATD…;` は多くの機器で、発信を受け付けた時点で `OK` を返すので、相手が鳴ったかまでは保証しません。呼出中に `NO CARRIER` などが来たら失敗(「呼出中に終了」)とします。
+- 判定は区切り行で分けた「`ATD` の応答」の部分だけで行います。通話中の `AT+CSQ` が `ERROR` を返しても、発信の成否には影響しません。
+- 送信レベルは AT コマンドでは取れないので、記録するのは受信レベル(rssi)と BER です。
+- 通話中の値の平均・最小(rssi)、最大(BER)は、`99`(不明)を除いて計算します。
+- 同じ分に 2 度は発信しません。発信の直後には、いつもの取得(`AT+CSQ`・`AT+CREG?`)を 1 回行います。
+
+### 受信グラフは横スクロールで過去を見る
+
+- 受信グラフには `$HistoryHours`(既定 24 時間)分の点を持ちます。点の数は「時間 × 3600 ÷ 取得周期 + 1」(3 分周期・24 時間なら 481 点、上限 3000 点)。旧版の `$HistoryMax` は使いません。
+- 起動時は、先月と今月の CSV から `$HistoryHours` 時間以内の行を読んで復元します(月をまたいでも途切れません)。
+- 画面では、グラフの横幅を「点の数 × 10px」にして横スクロールで見せます。Chart.js の時間軸(日付ライブラリが必要)は使わず、横軸は取得した順に並べ、ラベルを「時刻」と「月/日」の 2 段にしています。Monitor が止まっていた時間は詰めて描かれるので、ラベルの日時で確かめてください。
+- 縦軸の目盛りがスクロールで見えなくならないよう、描画のたびにグラフの左端(縦軸の目盛りの部分)を別の canvas に写し、左に重ねて固定しています。
+- 更新のたびに右端に合わせるのは、右端(最新)を見ているときだけです。過去を見ている途中は位置を動かしません。
+
 ### 更新停止の検知
 
 `data.js` に取得周期(`intervalSec`)を含め、画面側で最終更新時刻と比べます。周期の 2 倍 + 10 秒を超えると **STALE** 表示にします。
@@ -114,6 +152,17 @@ window.CSQ_DATA = {
   "intervalSec": 180,
   "rssiMax": 55,                     // Config.ps1 の $RssiMax (グラフの縦軸の最大値)
   "deviceName": "IsatPhone 2",       // Config.ps1 の $DeviceName (画面の見出し)
+  "call": {                          // 発信試験
+    "enabled": true, "durationSec": 20, "duringEverySec": 5,
+    "savedAt": "2026-10-26 09:00:00",          // 取り込み済みのタイムテーブルを画面で保存した日時
+    "slots": [ { "hour": 0, "time": "00:01", "number": "+81...", "on": true } ],   // 24 行
+    "appliedAt": "...", "source": "csqwatch_calltable.json",    // 取り込んだ日時とファイル名
+    "error": "", "errorAt": "", "rejectedSavedAt": "",          // 取り込めなかったときの理由
+    "inbox": "C:\\Users\\...\\Downloads",                       // 受け取り先
+    "today": [ { "t": "...", "slot": 9, "time": "09:01", "number": "+81...", "result": "成功", "code": "OK",
+                 "rb": "37", "bb": "0", "rdAvg": "26.7", "rdMin": "25", "bdMax": "3", "n": "3", "ra": "37", "ba": "0", "dur": "20" } ],
+    "todayTotal": 14, "todayOk": 12
+  },
   "current": {
     "LastUpdate": "2026-10-04 08:00:03",
     "CsqOk": true,                   // false = 端末から値を取れなかった (画面は「取得失敗」)
@@ -123,7 +172,7 @@ window.CSQ_DATA = {
     "RegStatus": "同期完了 (Registered)",
     "Extras": [ { "name": "Operator", "value": "..." } ]   // Config.ps1 の $Extras
   },
-  "history": [ { "t": "2026-10-04 08:00:03", "r": 37 } ]   // 直近 $HistoryMax 点。端末の圏外(99)は 0、取得失敗は null (グラフが途切れる)
+  "history": [ { "t": "2026-10-04 08:00:03", "r": 37 } ]   // 直近 $HistoryHours 時間分。端末の圏外(99)は 0、取得失敗は null (グラフが途切れる)
 };
 ```
 
@@ -137,13 +186,36 @@ window.CSQ_DATA = {
 Timestamp,RSSI,Level,BER,RegStatus,Notes
 2026-10-04 08:00:03,37,37 / 55,0,同期完了 (Registered),Periodic
 2026-10-04 08:03:03,99,取得失敗,99,ポートエラー,IO Error: 書き込み操作がタイムアウトしました。
-2026-10-04 08:00:00,,,,,TestCall +81...        ← 試験発信の記録
+2026-10-04 08:01:00,,,,,TestCall +81... 成功   ← 発信試験をした印 (結果の詳細は call_YYYYMM.csv)
 ```
 
 - 取得に失敗した行は、3 列目が `取得失敗`(2026-10-21 より前は `N/A`)、2 列目が `99` です。端末が返した圏外(`99`)とは 3 列目で見分けます。
 - 3 列目は 2026-10 までは `dBm`(GSM の換算値)でした。Inmarsat の rssi には使えないため、`Level`(生の値 / 最大値)に変えています。古い CSV の `dBm` 列の値は意味を持たないので、分析には 2 列目の `RSSI` を使ってください。
 - `Notes` には、`Periodic`、`CSQ no response`、COM エラーのメッセージ(1 行目)などが入ります。
 - 旧名(IsatMon)のころの CSV は `isat_YYYYMM.csv` です。新しい CSV がまだない月は、起動時に旧 CSV からグラフを復元します(読むだけで、書き換えません)。
+
+## 発信試験の CSV
+
+`logs/call_YYYYMM.csv`(UTF-8 BOM 付き)。1 回の発信試験で 1 行です。
+
+```
+Timestamp,Slot,Time,Number,Result,Code,RssiBefore,BerBefore,RssiDuringAvg,RssiDuringMin,BerDuringMax,DuringSamples,RssiAfter,BerAfter,DurationSec
+2026-10-26 09:01:00,9,09:01,+819012345678,成功,OK,37,0,26.7,25,3,3,37,0,20
+2026-10-26 11:01:00,11,11:01,+819012345678,失敗,NO CARRIER (呼出中に終了),33,0,24,22,7,2,32,0,20
+2026-10-26 07:01:00,7,07:01,+819012345678,失敗,BUSY,38,0,,,,0,38,0,20
+```
+
+| 列 | 内容 |
+|---|---|
+| `Slot` / `Time` | タイムテーブルの行(時)と、その行の時刻 |
+| `Result` / `Code` | `成功` / `失敗` と、判定のもとになった応答 |
+| `RssiBefore` / `BerBefore` | 発信直前の `AT+CSQ` |
+| `RssiDuringAvg` / `RssiDuringMin` / `BerDuringMax` | 通話中の `AT+CSQ` の rssi の平均・最小と、ber の最大(`99` は除く) |
+| `DuringSamples` | 通話中に値が取れた回数 |
+| `RssiAfter` / `BerAfter` | 切断直後の `AT+CSQ` |
+| `DurationSec` | 呼出秒数 |
+
+値が取れなかった欄は空欄です。起動時には、今日の分を読み戻して画面の「今日の結果」に出します。
 
 ## 起動時に作られるもの
 
@@ -153,6 +225,9 @@ Timestamp,RSSI,Level,BER,RegStatus,Notes
 | `data.js` | `app\` | 画面用のデータ |
 | `csq_YYYYMM.csv` | `app\logs\` | 取得結果(月別) |
 | `test_YYYYMMDD.log` | `app\logs\` | 試験ログ(日別) |
+| `call_YYYYMM.csv` | `app\logs\` | 発信試験の結果(月別。初めて発信したとき) |
+| `CallTable.json` | `app\` | 発信試験のタイムテーブル(初回は既定の内容で作る) |
+| `calltable_history\` | `app\logs\` | 取り込んだタイムテーブルのファイル |
 | `monitor_running.txt` | `app\logs\` | 動いている Monitor の情報 |
 | `profile_<ブラウザ名>\` | `app\` | 監視画面用のブラウザプロファイル |
 

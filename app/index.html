@@ -20,7 +20,54 @@
     .card.extra { border-left-color: #a78bfa; }
     .card-title { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
     .card-val { font-size: 1.6rem; font-weight: bold; margin-top: 6px; }
-    .chart-container { background: #1e293b; border-radius: 8px; padding: 16px; height: 360px; }
+    .chart-container { background: #1e293b; border-radius: 8px; padding: 12px 16px 16px; position: relative; }
+    .chart-head { display: flex; align-items: center; gap: 12px; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 6px; }
+    .chart-head .legend { display: inline-block; width: 26px; height: 10px; border: 2px solid #38bdf8; background: rgba(56,189,248,0.15); vertical-align: middle; margin-right: 6px; }
+    .chart-scroll { position: relative; overflow-x: auto; overflow-y: hidden; height: 360px; }
+    .chart-inner { position: relative; height: 340px; min-width: 100%; }
+    /* 縦軸の目盛りをスクロールしても左に残す (グラフの左端を写した重ね絵) */
+    .chart-yaxis { position: absolute; left: 16px; pointer-events: none; }
+    .btn-latest { margin-left: auto; }
+
+    /* ---- 発信試験 ---- */
+    .call { background: #1e293b; border-radius: 8px; padding: 16px; margin-top: 20px; }
+    .call-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .call-head h2 { font-size: 1.05rem; color: #38bdf8; margin: 0 6px 0 0; }
+    .pill { font-size: 0.8rem; font-weight: bold; padding: 3px 10px; border-radius: 9999px; background: #0b1120; color: #94a3b8; }
+    .pill.on  { color: #22c55e; }
+    .pill.off { color: #f59e0b; }
+    .call-sum { font-size: 0.85rem; color: #cbd5e1; }
+    .spacer { flex: 1; }
+    .btn { font: inherit; font-size: 0.85rem; color: #f8fafc; background: #0b1120; border: 1px solid #334155; border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+    .btn:hover { border-color: #38bdf8; }
+    .btn.primary { background: #0369a1; border-color: #0369a1; }
+    .btn.primary:hover { background: #0284c7; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .call-msg { font-size: 0.85rem; margin: 10px 0 0; min-height: 1.2em; }
+    .call-msg.ok   { color: #22c55e; }
+    .call-msg.warn { color: #f59e0b; }
+    .call-msg.err  { color: #f87171; }
+    .tbl-wrap { overflow-x: auto; margin-top: 10px; }
+    table.ct { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+    table.ct th, table.ct td { border-bottom: 1px solid #334155; padding: 5px 8px; text-align: center; white-space: nowrap; }
+    table.ct th { color: #94a3b8; font-weight: normal; position: sticky; top: 0; background: #1e293b; }
+    table.ct th.grp { border-bottom: 1px solid #475569; }
+    table.ct td.l { text-align: left; }
+    table.ct tr.off td { color: #64748b; }
+    table.ct tr.now td { background: #0f2a3d; }
+    .r-ok   { color: #22c55e; font-weight: bold; }
+    .r-ng   { color: #f87171; font-weight: bold; }
+    .r-miss { color: #f59e0b; }
+    .delta-bad { color: #f59e0b; font-weight: bold; }
+    .muted { color: #64748b; }
+    .edit-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; font-size: 0.85rem; }
+    .edit-bar label { display: inline-flex; align-items: center; gap: 6px; }
+    .edit-bar input[type=number] { width: 4.5em; }
+    .edit-bar input[type=text] { width: 12em; }
+    input.in { font: inherit; color: #f8fafc; background: #0b1120; border: 1px solid #334155; border-radius: 4px; padding: 3px 6px; }
+    input.in.bad { border-color: #f87171; }
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: #38bdf8; }
+    .note { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; line-height: 1.6; }
   </style>
 </head>
 <body>
@@ -41,8 +88,79 @@
   <div class="grid" id="extras"></div>
 
   <div class="chart-container">
-    <canvas id="telemetryChart"></canvas>
+    <div class="chart-head">
+      <span><span class="legend"></span><span id="chartTitle">受信レベル CSQ (0-55)</span></span>
+      <span class="muted" id="chartRange"></span>
+      <button class="btn btn-latest" id="btnLatest" hidden>最新へ ▶</button>
+    </div>
+    <div class="chart-scroll" id="chartScroll">
+      <div class="chart-inner" id="chartInner"><canvas id="telemetryChart"></canvas></div>
+    </div>
+    <canvas class="chart-yaxis" id="chartYAxis"></canvas>
   </div>
+
+  <!-- 発信試験: 24 個のタイムテーブルと今日の結果 -->
+  <section class="call">
+    <div class="call-head">
+      <h2>&#x1F4DE; 発信試験</h2>
+      <span class="pill" id="callState">--</span>
+      <span class="call-sum" id="callSum"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="btnEdit" disabled>タイムテーブルを編集</button>
+    </div>
+    <div class="call-msg" id="callMsg"></div>
+
+    <!-- 表示 -->
+    <div id="callView" class="tbl-wrap">
+      <table class="ct">
+        <thead>
+          <tr>
+            <th rowspan="2">時</th><th rowspan="2">時刻</th><th rowspan="2">着信番号</th><th rowspan="2">試験</th>
+            <th rowspan="2">今日の結果</th><th rowspan="2">応答</th>
+            <th colspan="4" class="grp">受信レベル (rssi)</th><th colspan="3" class="grp">BER</th>
+          </tr>
+          <tr>
+            <th>直前</th><th>通話中 平均/最小</th><th>直後</th><th title="通話中の平均 − 直前">差</th>
+            <th>直前</th><th>通話中 最大</th><th>直後</th>
+          </tr>
+        </thead>
+        <tbody id="callBody"></tbody>
+      </table>
+      <div class="note">
+        「差」は 通話中の平均 − 直前 です。送信中に受信が下がる (干渉を受けている) と大きなマイナスになります (−5 以下を強調)。
+        「未実施」は ON なのに今日の結果がないもの (その時刻に Monitor が止まっていた・時刻を過ぎてから ON にした など) です。
+      </div>
+    </div>
+
+    <!-- 編集 -->
+    <div id="callEdit" hidden>
+      <div class="edit-bar">
+        <label><input type="checkbox" id="edEnabled"> 発信試験を有効にする</label>
+        <label>呼出秒数 <input class="in" type="number" id="edDur" min="5" max="120"> 秒</label>
+        <span class="spacer"></span>
+        <label>番号 <input class="in" type="text" id="edBulkNum" placeholder="+8190xxxxxxxx"></label>
+        <button class="btn" id="edBulkApply">全行に入れる</button>
+        <button class="btn" id="edAllOn">全て ON</button>
+        <button class="btn" id="edAllOff">全て OFF</button>
+        <button class="btn" id="edReset">時刻を各時 01 分に戻す</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="ct">
+          <thead><tr><th>時</th><th>ON</th><th>時刻</th><th>着信番号</th></tr></thead>
+          <tbody id="edBody"></tbody>
+        </table>
+      </div>
+      <div class="edit-bar">
+        <button class="btn primary" id="edSave">保存</button>
+        <button class="btn" id="edCancel">キャンセル</button>
+        <span class="call-msg err" id="edErr"></span>
+      </div>
+      <div class="note">
+        「保存」を押すと <code>csqwatch_calltable.json</code> がダウンロードフォルダに保存され、Monitor が数秒で取り込みます。
+        取り込まれると、上に「反映済み」と出ます。発信には通話料がかかります。番号と時刻をよく確かめてください。
+      </div>
+    </div>
+  </section>
 
   <script>
     // データは Monitor.ps1 が書き出す data.js (window.CSQ_DATA) から読む。
@@ -56,25 +174,72 @@
       b.className = 'status-badge ' + (cls || '');
     }
 
+    // ---- 受信グラフ (横スクロール。縦軸の目盛りは左に固定) ----
+    var PX_PER_POINT = 10;      // 1 点あたりの横幅 (px)
+    function md(s) { var d = String(s).split(' ')[0].split('-'); return d.length === 3 ? parseInt(d[1], 10) + '/' + parseInt(d[2], 10) : ''; }
+    function hm(s) { var p = String(s).split(' '); return p.length > 1 ? p[1].substring(0, 5) : s; }
+
+    // グラフを描いたあとに、左端 (縦軸の目盛り) を重ね絵に写す
+    var stickyYAxis = {
+      id: 'stickyYAxis',
+      afterRender: function (c) {
+        var ov = $('chartYAxis'), sc = $('chartScroll');
+        var r = window.devicePixelRatio || 1;
+        // 写すのは縦軸の目盛りの部分だけ (グラフの線と横軸のラベルは写さない)
+        var w = Math.floor(c.chartArea.left) - 1;
+        var h = Math.ceil(c.chartArea.bottom) + 8;
+        ov.width = w * r; ov.height = h * r;
+        ov.style.width = w + 'px'; ov.style.height = h + 'px';
+        ov.style.top = (sc.offsetTop) + 'px';
+        var x = ov.getContext('2d');
+        x.fillStyle = '#1e293b';
+        x.fillRect(0, 0, ov.width, ov.height);
+        x.drawImage(c.canvas, 0, 0, w * r, h * r, 0, 0, w * r, h * r);
+        ov.style.display = (sc.scrollLeft > 0) ? 'block' : 'none';
+      }
+    };
+
     function initChart() {
       chart = new Chart($('telemetryChart').getContext('2d'), {
         type: 'line',
         data: { labels: [], datasets: [{
-          label: 'CSQ (0-55)', data: [],
+          label: 'CSQ', data: [],
           borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.15)',
-          fill: true, tension: 0.2
+          fill: true, tension: 0.2, pointRadius: 2, pointHoverRadius: 4
         }]},
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
           scales: {
             y: { min: 0, max: 55, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-            x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+            x: {
+              ticks: {
+                color: '#94a3b8', maxRotation: 0, autoSkip: true, autoSkipPadding: 24,
+                // 横軸は「時刻」と「月/日」の 2 段
+                callback: function (v) { var s = this.getLabelForValue(v); return [hm(s), md(s)]; }
+              },
+              grid: { color: '#1e293b' }
+            }
           },
-          plugins: { legend: { labels: { color: '#f8fafc' } } }
-        }
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { title: function (items) { return items.length ? items[0].label : ''; } } }
+          }
+        },
+        plugins: [stickyYAxis]
       });
+      var sc = $('chartScroll');
+      sc.addEventListener('scroll', function () {
+        $('chartYAxis').style.display = (sc.scrollLeft > 0) ? 'block' : 'none';
+        $('btnLatest').hidden = isAtEnd();
+      });
+      $('btnLatest').onclick = function () { sc.scrollLeft = sc.scrollWidth; };
       loadData();
       setInterval(loadData, 3000);
+    }
+
+    function isAtEnd() {
+      var sc = $('chartScroll');
+      return sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 20;
     }
 
     function loadData() {
@@ -118,12 +283,24 @@
       // 目盛りの最大値は data.js の rssiMax (Config.ps1 の $RssiMax) に合わせる
       var mx = d.rssiMax || 55;
       chart.options.scales.y.max = mx;
-      chart.data.datasets[0].label = 'CSQ (0-' + mx + ')';
+      $('chartTitle').textContent = '受信レベル CSQ (0-' + mx + ')';
 
+      // 横幅を点の数に合わせて広げ、横スクロールで過去を見る。
+      // 右端 (最新) を見ているときだけ、更新後も右端に合わせる (過去を見ている途中では動かさない)
       var h = d.history || [];
-      chart.data.labels = h.map(function (x) { return x.t.indexOf(' ') !== -1 ? x.t.split(' ')[1] : x.t; });
+      var sc = $('chartScroll');
+      var follow = isAtEnd();
+      $('chartInner').style.width = Math.max(sc.clientWidth, h.length * PX_PER_POINT) + 'px';
+      chart.data.labels = h.map(function (x) { return x.t; });
       chart.data.datasets[0].data = h.map(function (x) { return x.r; });
+      chart.resize();
       chart.update();
+      if (follow) sc.scrollLeft = sc.scrollWidth;
+      $('btnLatest').hidden = isAtEnd();
+      $('chartRange').textContent = h.length ? (h[0].t.substring(0, 16) + ' 〜 ' + h[h.length - 1].t.substring(0, 16) + '(' + h.length + ' 点)') : '';
+
+      // 発信試験 (編集中も表示側は更新しておく。編集欄には触らない)
+      renderCall(d.call);
 
       // 更新が止まっていたら STALE 表示 (Monitor が落ちたことに気づける)
       var age = (Date.now() - new Date(lu.replace(' ', 'T')).getTime()) / 1000;
@@ -133,7 +310,179 @@
       else setBadge(d.mock ? 'LIVE (MOCK)' : 'LIVE', 'live');
     }
 
-    window.onload = initChart;
+    // ================= 発信試験 =================
+    var lastCall = null;        // data.js の call (最後に読んだもの)
+    var editing = false;
+    var pendingSavedAt = '';    // 画面で保存し、まだ取り込みを確認していない savedAt
+    var pendingSince = 0;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function nowText() { var d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()); }
+    function hhmm(s) { s = String(s || ''); return s.indexOf(' ') !== -1 ? s.split(' ')[1].substring(0, 5) : s; }
+    function setCallMsg(text, cls) { var m = $('callMsg'); m.textContent = text; m.className = 'call-msg ' + (cls || ''); }
+
+    function renderCall(c) {
+      if (!c || !c.slots) return;
+      lastCall = c;
+      $('btnEdit').disabled = false;
+
+      var st = $('callState');
+      st.textContent = c.enabled ? '有効' : '停止中';
+      st.className = 'pill ' + (c.enabled ? 'on' : 'off');
+      var onN = c.slots.filter(function (s) { return s.on; }).length;
+      $('callSum').textContent = 'ON ' + onN + ' 件 / 呼出 ' + c.durationSec + ' 秒 / 通話中の測定 ' +
+        (c.duringEverySec > 0 ? c.duringEverySec + ' 秒ごと' : 'しない') +
+        ' / 今日の結果 ' + (c.todayOk || 0) + ' 成功 / ' + (c.todayTotal || 0) + ' 回';
+
+      // 反映の状態 (画面で保存した直後は、それが取り込まれたかを示す)
+      if (pendingSavedAt) {
+        if (c.savedAt === pendingSavedAt) {
+          setCallMsg('反映済み (' + hhmm(c.appliedAt) + ' に Monitor が取り込みました)', 'ok');
+          pendingSavedAt = '';
+        } else if (c.rejectedSavedAt === pendingSavedAt) {
+          setCallMsg(c.error + ' (タイムテーブルは前のままです)', 'err');
+          pendingSavedAt = '';
+        } else if (Date.now() - pendingSince > 30000) {
+          setCallMsg('まだ取り込まれていません。保存したファイルが受け取り先 (' + (c.inbox || 'ダウンロードフォルダ') +
+                     ') にあるか、Monitor が動いているかを確認してください。', 'warn');
+        } else {
+          setCallMsg('保存しました。Monitor の取り込みを待っています…', 'warn');
+        }
+      } else if (c.error) {
+        setCallMsg(c.error + (c.errorAt ? ' (' + hhmm(c.errorAt) + ')' : ''), 'err');
+      } else if (c.appliedAt) {
+        setCallMsg('タイムテーブル: ' + c.appliedAt + ' に反映', '');
+      }
+
+      // 今日の結果を時の行ごとにまとめる (同じ行に複数あれば最後のもの)
+      var res = {};
+      (c.today || []).forEach(function (r) { res[r.slot] = r; });
+      var now = new Date();
+      var nowHM = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+      var rows = '';
+      c.slots.forEach(function (s) {
+        var r = res[s.hour];
+        var cls = s.on ? '' : 'off';
+        if (s.hour === now.getHours()) cls += ' now';
+        var result = '<span class="muted">—</span>', code = '', rb = '', rd = '', ra = '', dl = '', bb = '', bd = '', ba = '';
+        if (r) {
+          result = r.result === '成功' ? '<span class="r-ok">✓ 成功</span>' : '<span class="r-ng">✗ 失敗</span>';
+          result += ' <span class="muted">' + esc(hhmm(r.t)) + '</span>';
+          code = esc(r.code);
+          rb = esc(r.rb); ra = esc(r.ra); bb = esc(r.bb); ba = esc(r.ba); bd = esc(r.bdMax);
+          rd = r.rdAvg !== '' ? esc(r.rdAvg) + ' / ' + esc(r.rdMin) : '<span class="muted">' + (r.result === '成功' ? '取得なし' : '') + '</span>';
+          if (r.rdAvg !== '' && r.rb !== '') {
+            var d = Math.round((parseFloat(r.rdAvg) - parseFloat(r.rb)) * 10) / 10;
+            dl = '<span class="' + (d <= -5 ? 'delta-bad' : '') + '">' + (d > 0 ? '+' : '') + d + '</span>';
+          }
+        } else if (s.on && c.enabled) {
+          result = s.time <= nowHM ? '<span class="r-miss">未実施</span>' : '<span class="muted">予定</span>';
+        }
+        rows += '<tr class="' + cls + '"><td>' + s.hour + '</td><td>' + esc(s.time) + '</td><td class="l">' + esc(s.number) + '</td>' +
+                '<td>' + (s.on ? 'ON' : 'OFF') + '</td><td class="l">' + result + '</td><td class="l">' + code + '</td>' +
+                '<td>' + rb + '</td><td>' + rd + '</td><td>' + ra + '</td><td>' + dl + '</td>' +
+                '<td>' + bb + '</td><td>' + bd + '</td><td>' + ba + '</td></tr>';
+      });
+      $('callBody').innerHTML = rows;
+    }
+
+    // ---- 編集 ----
+    function openEditor() {
+      if (!lastCall) return;
+      editing = true;
+      $('edEnabled').checked = !!lastCall.enabled;
+      $('edDur').value = lastCall.durationSec;
+      $('edBulkNum').value = '';
+      $('edErr').textContent = '';
+      var rows = '';
+      lastCall.slots.forEach(function (s) {
+        rows += '<tr><td>' + s.hour + '</td>' +
+                '<td><input type="checkbox" class="ed-on"' + (s.on ? ' checked' : '') + '></td>' +
+                '<td><input class="in ed-time" type="text" maxlength="5" placeholder="HH:MM" style="width:4.5em;text-align:center" value="' + esc(s.time) + '"></td>' +
+                '<td class="l"><input class="in ed-num" type="text" value="' + esc(s.number) + '" placeholder="+8190xxxxxxxx" style="width:14em"></td></tr>';
+      });
+      $('edBody').innerHTML = rows;
+      $('callView').hidden = true;
+      $('callEdit').hidden = false;
+      $('btnEdit').hidden = true;
+    }
+
+    function closeEditor() {
+      editing = false;
+      $('callEdit').hidden = true;
+      $('callView').hidden = false;
+      $('btnEdit').hidden = false;
+    }
+
+    function editorRows() {
+      var trs = $('edBody').querySelectorAll('tr');
+      var out = [];
+      for (var i = 0; i < trs.length; i++) {
+        out.push({ tr: trs[i], on: trs[i].querySelector('.ed-on'), time: trs[i].querySelector('.ed-time'), num: trs[i].querySelector('.ed-num') });
+      }
+      return out;
+    }
+
+    // Monitor 側 (ConvertTo-CallTable) と同じ確認をしてから保存する
+    function saveEditor() {
+      $('edErr').textContent = '';
+      var errs = [];
+      var dur = parseInt($('edDur').value, 10);
+      if (isNaN(dur) || dur < 5 || dur > 120) errs.push('呼出秒数は 5〜120 にしてください');
+      var seen = {}, slots = [];
+      editorRows().forEach(function (e, h) {
+        var time = e.time.value.trim().replace('：', ':'), num = e.num.value.replace(/[\s-]/g, ''), on = e.on.checked;
+        var tm = /^(\d{1,2}):(\d{2})$/.exec(time);
+        if (tm) { time = pad2(parseInt(tm[1], 10)) + ':' + tm[2]; e.time.value = time; }   // 9:30 → 09:30
+        var bad = false;
+        e.time.classList.remove('bad'); e.num.classList.remove('bad');
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) { errs.push(h + ' 時の行: 時刻が正しくありません'); e.time.classList.add('bad'); bad = true; }
+        if (on) {
+          if (!/^\+?\d{3,20}$/.test(num)) { errs.push(h + ' 時の行: 着信番号が正しくありません'); e.num.classList.add('bad'); }
+          if (!bad && seen.hasOwnProperty(time)) { errs.push(h + ' 時の行: 時刻 ' + time + ' が ' + seen[time] + ' 時の行と重なっています'); e.time.classList.add('bad'); }
+          if (!bad) seen[time] = h;
+        }
+        slots.push({ hour: h, time: time, number: num, on: on });
+      });
+      if (errs.length) { $('edErr').textContent = errs.slice(0, 3).join(' / ') + (errs.length > 3 ? ' ほか' : ''); return; }
+
+      var enabled = $('edEnabled').checked;
+      var onN = slots.filter(function (s) { return s.on; }).length;
+      var msg = 'タイムテーブルを保存します。\n\n発信試験: ' + (enabled ? '有効' : '停止') + '\nON の行: ' + onN + ' 件\n呼出秒数: ' + dur + ' 秒\n\n' +
+                (enabled && onN > 0 ? '保存すると、この内容で定時に発信します (通話料がかかります)。' : '保存しても発信は行いません。');
+      if (!window.confirm(msg)) return;
+
+      var table = { version: 1, enabled: enabled, durationSec: dur, savedAt: nowText(), slots: slots };
+      var blob = new Blob([JSON.stringify(table, null, 2)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'csqwatch_calltable.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+
+      pendingSavedAt = table.savedAt;
+      pendingSince = Date.now();
+      closeEditor();
+      setCallMsg('保存しました。Monitor の取り込みを待っています…', 'warn');
+    }
+
+    function initCall() {
+      $('btnEdit').onclick = openEditor;
+      $('edCancel').onclick = closeEditor;
+      $('edSave').onclick = saveEditor;
+      $('edAllOn').onclick  = function () { editorRows().forEach(function (e) { e.on.checked = true; }); };
+      $('edAllOff').onclick = function () { editorRows().forEach(function (e) { e.on.checked = false; }); };
+      $('edReset').onclick  = function () { editorRows().forEach(function (e, h) { e.time.value = pad2(h) + ':01'; }); };
+      $('edBulkApply').onclick = function () {
+        var v = $('edBulkNum').value.trim();
+        if (!v) return;
+        editorRows().forEach(function (e) { e.num.value = v; });
+      };
+    }
+
+    window.onload = function () { initCall(); initChart(); };
   </script>
 </body>
 </html>

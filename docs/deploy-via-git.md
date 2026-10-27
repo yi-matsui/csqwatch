@@ -30,7 +30,7 @@ USB メモリを持ち込めない環境向けの手順です。
    メールアドレスを公開したくないときは、上の `users.noreply.github.com` の形(GitHub の設定画面の Email に表示されます)を使います。
 
 3. push の前に、`git status` と `git ls-files` で次のものが**含まれていない**ことを確認します(`.gitignore` で除外済みです)。
-   - `Config.ps1`(COM 番号・発信先)
+   - `Config.ps1`(COM 番号・発信先)、`CallTable.json`(発信試験のタイムテーブル。着信番号が入る)
    - `logs\`(CSV・試験ログ・`monitor_running.txt`)、`data.js`、`probe_日時.txt`(実機の値や機器の情報が入ります)
    - `profile_<ブラウザ名>\`(監視画面用のブラウザプロファイル)
    - `AtIo.exe`
@@ -55,7 +55,7 @@ git pull
 ```
 
 `AtIo.cs` が変わったときだけ、`app\build.bat` を実行し直します。
-`Config.ps1`・`logs\`・`profile_<ブラウザ名>\`・`AtIo.exe` は Git の管理外なので、`git pull` で上書きされたり消えたりしません。
+`Config.ps1`・`CallTable.json`・`logs\`・`profile_<ブラウザ名>\`・`AtIo.exe` は Git の管理外なので、`git pull` で上書きされたり消えたりしません。
 
 ### 2-B. Git が入っていない場合(Windows 11 の標準機能だけ)
 
@@ -71,7 +71,7 @@ Expand-Archive .\csqwatch.zip -DestinationPath .
 
 - 展開すると `csqwatch-main` というフォルダができます。その中の `app` を使います。
 - **`Unblock-File` を忘れないでください。** インターネットから取った ZIP は「ブロック」の印が付いていて、展開したファイルまで引き継ぎます。そのまま `.bat` を開くと、セキュリティの警告が出ます。ZIP のプロパティで「許可する」にチェックを入れても同じです。
-- 更新するときは、**監視(`Monitor.bat`)を止めてから**、新しい ZIP を取り直し、展開した `app` の中身を前回のフォルダへ上書きコピーします。`Config.ps1`・`logs\`・`profile_<ブラウザ名>\` は ZIP に入っていないので、残ります。
+- 更新するときは、**監視(`Monitor.bat`)を止めてから**、新しい ZIP を取り直し、展開した `app` の中身を前回のフォルダへ上書きコピーします。`Config.ps1`・`CallTable.json`・`logs\`・`profile_<ブラウザ名>\` は ZIP に入っていないので、残ります。**`AtIo.cs` が変わったときは、`build.bat` で `AtIo.exe` を作り直してください**(2026-10-26 の発信試験の追加で変わっています)。
 
 ### 2-C. 旧名(IsatMon)から入れ替える場合
 
