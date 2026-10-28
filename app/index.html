@@ -6,6 +6,7 @@
   <title>CsqWatch</title>
   <script src="chart.umd.min.js"></script>
   <style>
+    [hidden] { display: none !important; }
     body { font-family: sans-serif; background: #0b1120; color: #f8fafc; margin: 20px; }
     header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; }
     h1 { font-size: 1.3rem; color: #38bdf8; margin: 0; }
@@ -68,6 +69,25 @@
     input.in.bad { border-color: #f87171; }
     input[type=checkbox] { width: 16px; height: 16px; accent-color: #38bdf8; }
     .note { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; line-height: 1.6; }
+
+    /* ---- 評価トレンド ---- */
+    .trend { background: #1e293b; border-radius: 8px; padding: 16px; margin-top: 20px; }
+    .seg { display: inline-flex; border: 1px solid #334155; border-radius: 6px; overflow: hidden; }
+    .seg button { font: inherit; font-size: 0.85rem; color: #cbd5e1; background: #0b1120; border: 0; border-right: 1px solid #334155; padding: 5px 12px; cursor: pointer; }
+    .seg button:last-child { border-right: 0; }
+    .seg button.on { background: #0369a1; color: #fff; }
+    .trend-chart { position: relative; height: 320px; margin-top: 10px; }
+    .trend-sum { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.85rem; color: #cbd5e1; margin-top: 10px; }
+    .trend-sum b { color: #f8fafc; }
+    .hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; margin-top: 6px; }
+    .hours div { text-align: center; font-size: 0.72rem; padding: 4px 0; border-radius: 3px; background: #0b1120; color: #64748b; line-height: 1.3; }
+    .hours div.g { background: #14532d; color: #dcfce7; }
+    .hours div.y { background: #713f12; color: #fef3c7; }
+    .hours div.r { background: #7f1d1d; color: #fee2e2; }
+    .ev-list { margin: 8px 0 0; padding: 0; list-style: none; font-size: 0.85rem; }
+    .ev-list li { padding: 3px 0; color: #e2e8f0; }
+    .ev-list li span { color: #fbbf24; margin-right: 8px; }
+    .ev-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; font-size: 0.85rem; }
   </style>
 </head>
 <body>
@@ -116,7 +136,9 @@
         <thead>
           <tr>
             <th rowspan="2">時</th><th rowspan="2">時刻</th><th rowspan="2">着信番号</th><th rowspan="2">試験</th>
-            <th rowspan="2">今日の結果</th><th rowspan="2">応答</th>
+            <th rowspan="2">今日の結果</th><th rowspan="2">応答・切断理由 / 到達段階</th>
+            <th rowspan="2" title="発信中の GPS の位置 (+SKGPSPOSI。1=あり 0=なし)">GPS</th>
+            <th rowspan="2" title="発信中のアンテナ表示 (+CIEV: 2) の最小 (0〜5)">表示器<br>最小</th>
             <th colspan="4" class="grp">受信レベル (rssi)</th><th colspan="3" class="grp">BER</th>
           </tr>
           <tr>
@@ -128,6 +150,7 @@
       </table>
       <div class="note">
         「差」は 通話中の平均 − 直前 です。送信中に受信が下がる (干渉を受けている) と大きなマイナスになります (−5 以下を強調)。
+        「GPS」は発信中の GPS の位置の変化 (1=あり 0=なし)。0 になった回はオレンジで示します (Inmarsat 端末は発信に GPS の位置が必要)。
         「未実施」は ON なのに今日の結果がないもの (その時刻に Monitor が止まっていた・時刻を過ぎてから ON にした など) です。
       </div>
     </div>
@@ -162,6 +185,36 @@
     </div>
   </section>
 
+  <!-- 評価トレンド: 1 日 / 3 日 / 1 週間。15 分ごとにまとめた値と、発信試験の結果、変化のコメント -->
+  <section class="trend">
+    <div class="call-head">
+      <h2>&#x1F4C8; 評価トレンド</h2>
+      <span class="seg" id="trendSeg">
+        <button data-d="1">1 日</button><button data-d="3">3 日</button><button data-d="7" class="on">1 週間</button>
+      </span>
+      <span class="call-sum" id="trendInfo"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="btnEvAdd">コメントを追加</button>
+    </div>
+    <div class="ev-form" id="evForm" hidden>
+      <label>日時 <input class="in" type="text" id="evTime" maxlength="16" style="width:10.5em" placeholder="YYYY-MM-DD HH:MM"></label>
+      <label>内容 <input class="in" type="text" id="evText" maxlength="100" style="width:28em" placeholder="例: Inmarsat 側の同軸 3.9m を抜いた"></label>
+      <button class="btn primary" id="evSave">保存</button>
+      <button class="btn" id="evCancel">キャンセル</button>
+      <span class="call-msg err" id="evErr"></span>
+    </div>
+    <div class="call-msg" id="evMsg"></div>
+    <div class="trend-chart"><canvas id="trendChart"></canvas></div>
+    <div class="trend-sum" id="trendSum"></div>
+    <div class="note" style="margin-top:12px">時間帯別の発信試験の成功 (期間内の合計。緑 90% 以上 / 黄 50% 以上 / 赤 50% 未満)</div>
+    <div class="hours" id="trendHours"></div>
+    <ul class="ev-list" id="evList"></ul>
+    <div class="note">
+      線は 15 分ごとの CSQ の平均、帯は最小〜最大、橙の階段線は BER の最大 (右の目盛り)。点は発信試験 (緑=成功・赤=失敗)。
+      黄色の縦線は変化のコメント (logs\events.csv)。何も描かれていない時間は、Monitor が止まっていたか、すべて取得失敗だった時間です。
+    </div>
+  </section>
+
   <script>
     // データは Monitor.ps1 が書き出す data.js (window.CSQ_DATA) から読む。
     // <script> の読み込みなので、ファイルをダブルクリックで開いても (file://) 動く。
@@ -175,7 +228,7 @@
     }
 
     // ---- 受信グラフ (横スクロール。縦軸の目盛りは左に固定) ----
-    var PX_PER_POINT = 10;      // 1 点あたりの横幅 (px)
+    var PX_PER_POINT = 6;       // 1 点あたりの横幅 (px)。3 日 (約 1440 点) で約 8600px
     function md(s) { var d = String(s).split(' ')[0].split('-'); return d.length === 3 ? parseInt(d[1], 10) + '/' + parseInt(d[2], 10) : ''; }
     function hm(s) { var p = String(s).split(' '); return p.length > 1 ? p[1].substring(0, 5) : s; }
 
@@ -225,7 +278,7 @@
             tooltip: { callbacks: { title: function (items) { return items.length ? items[0].label : ''; } } }
           }
         },
-        plugins: [stickyYAxis]
+        plugins: [stickyYAxis, eventLines]
       });
       var sc = $('chartScroll');
       sc.addEventListener('scroll', function () {
@@ -235,6 +288,19 @@
       $('btnLatest').onclick = function () { sc.scrollLeft = sc.scrollWidth; };
       loadData();
       setInterval(loadData, 3000);
+    }
+
+    // 受信グラフのコメントの縦線: 各点の時刻と照らして、その時刻以前でいちばん近い点の位置に引く
+    var liveHist = [];
+    function setLiveEvents() {
+      var h = liveHist;
+      if (!chart || !chart.$eventsSrc || !h.length) return;
+      var t0 = toMin(h[0].t), t1 = toMin(h[h.length - 1].t) + 1;
+      chart.$events = chart.$eventsSrc.filter(function (e) { var m = toMin(e.t); return m >= t0 && m <= t1; }).map(function (e) {
+        var m = toMin(e.t), best = 0;
+        for (var q = 0; q < h.length; q++) { if (toMin(h[q].t) <= m) best = q; else break; }
+        return { i: best, text: e.text };
+      });
     }
 
     function isAtEnd() {
@@ -293,6 +359,8 @@
       $('chartInner').style.width = Math.max(sc.clientWidth, h.length * PX_PER_POINT) + 'px';
       chart.data.labels = h.map(function (x) { return x.t; });
       chart.data.datasets[0].data = h.map(function (x) { return x.r; });
+      liveHist = h;
+      setLiveEvents();
       chart.resize();
       chart.update();
       if (follow) sc.scrollLeft = sc.scrollWidth;
@@ -365,11 +433,14 @@
         var r = res[s.hour];
         var cls = s.on ? '' : 'off';
         if (s.hour === now.getHours()) cls += ' now';
+        var gp = '', cv = '';
         var result = '<span class="muted">—</span>', code = '', rb = '', rd = '', ra = '', dl = '', bb = '', bd = '', ba = '';
         if (r) {
           result = r.result === '成功' ? '<span class="r-ok">✓ 成功</span>' : '<span class="r-ng">✗ 失敗</span>';
           result += ' <span class="muted">' + esc(hhmm(r.t)) + '</span>';
           code = esc(r.code);
+          gp = r.gps ? (/0/.test(r.gps) ? '<span class="delta-bad">' + esc(r.gps) + '</span>' : esc(r.gps)) : '';
+          cv = esc(r.cievMin || '');
           rb = esc(r.rb); ra = esc(r.ra); bb = esc(r.bb); ba = esc(r.ba); bd = esc(r.bdMax);
           rd = r.rdAvg !== '' ? esc(r.rdAvg) + ' / ' + esc(r.rdMin) : '<span class="muted">' + (r.result === '成功' ? '取得なし' : '') + '</span>';
           if (r.rdAvg !== '' && r.rb !== '') {
@@ -381,6 +452,7 @@
         }
         rows += '<tr class="' + cls + '"><td>' + s.hour + '</td><td>' + esc(s.time) + '</td><td class="l">' + esc(s.number) + '</td>' +
                 '<td>' + (s.on ? 'ON' : 'OFF') + '</td><td class="l">' + result + '</td><td class="l">' + code + '</td>' +
+                '<td>' + gp + '</td><td>' + cv + '</td>' +
                 '<td>' + rb + '</td><td>' + rd + '</td><td>' + ra + '</td><td>' + dl + '</td>' +
                 '<td>' + bb + '</td><td>' + bd + '</td><td>' + ba + '</td></tr>';
       });
@@ -482,7 +554,205 @@
       };
     }
 
-    window.onload = function () { initCall(); initChart(); };
+    // ================= 評価トレンド =================
+    var trendChart = null, trendDays = 7, lastTrend = null, pendingEvId = '', pendingEvSince = 0;
+
+    // コメントの縦線 (受信グラフと評価トレンドの両方で使う)。chart.$events = [{ i: 位置, text: 内容 }]
+    var eventLines = {
+      id: 'eventLines',
+      afterDatasetsDraw: function (c) {
+        var evs = c.$events || [];
+        if (!evs.length) return;
+        var x = c.ctx, a = c.chartArea, xs = c.scales.x;
+        x.save();
+        x.strokeStyle = '#fbbf24'; x.fillStyle = '#fbbf24'; x.lineWidth = 1.5; x.setLineDash([5, 4]);
+        x.font = '12px sans-serif'; x.textBaseline = 'top';
+        evs.forEach(function (e, n) {
+          var px = xs.getPixelForValue(e.i);
+          if (px < a.left || px > a.right) return;
+          x.beginPath(); x.moveTo(px, a.top); x.lineTo(px, a.bottom); x.stroke();
+          var label = e.text.length > 24 ? e.text.substring(0, 24) + '…' : e.text;
+          var w = x.measureText(label).width;
+          var tx = (px + 4 + w > a.right) ? px - 4 - w : px + 4;
+          x.fillText(label, tx, a.top + 34 + (n % 3) * 15);   // 上端の発信試験の点と重ならない高さ
+        });
+        x.restore();
+      }
+    };
+
+    // 日時の文字列 (YYYY-MM-DD HH:MM) を分に
+    function toMin(s) { var d = new Date(String(s).substring(0, 16).replace(' ', 'T') + ':00'); return d.getTime() / 60000; }
+
+    function initTrend() {
+      trendChart = new Chart($('trendChart').getContext('2d'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: '最大', data: [], borderColor: 'transparent', pointRadius: 0, fill: false, spanGaps: false },
+          { label: '最小', data: [], borderColor: 'transparent', backgroundColor: 'rgba(56,189,248,0.18)', pointRadius: 0, fill: '-1', spanGaps: false },
+          { label: 'CSQ 平均', data: [], borderColor: '#38bdf8', borderWidth: 1.5, pointRadius: 0, fill: false, spanGaps: false, tension: 0.2 },
+          { label: 'BER 最大', data: [], borderColor: '#f59e0b', borderWidth: 1, pointRadius: 0, stepped: true, fill: false, yAxisID: 'y2', spanGaps: false },
+          { label: '発信 成功', data: [], showLine: false, pointRadius: 4, pointBackgroundColor: '#22c55e', pointBorderColor: '#22c55e' },
+          { label: '発信 失敗', data: [], showLine: false, pointRadius: 5, pointStyle: 'crossRot', pointBorderWidth: 2, pointBorderColor: '#f87171', pointBackgroundColor: '#f87171' }
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: 'nearest', intersect: false, axis: 'x' },
+          scales: {
+            y:  { min: 0, max: 55, ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, title: { display: true, text: 'CSQ', color: '#94a3b8' } },
+            y2: { position: 'right', min: 0, max: 15, ticks: { color: '#f59e0b' }, grid: { display: false }, title: { display: true, text: 'BER', color: '#f59e0b' } },
+            x: {
+              ticks: {
+                color: '#94a3b8', autoSkip: false, maxRotation: 0,
+                callback: function (v) {
+                  var s = this.getLabelForValue(v); var hh = s.substring(11, 13), mm = s.substring(14, 16);
+                  if (mm !== '00') return null;
+                  var step = trendDays >= 7 ? 12 : (trendDays >= 3 ? 6 : 3);
+                  if (parseInt(hh, 10) % step !== 0) return null;
+                  return hh === '00' ? [hh + ':00', md(s)] : hh + ':00';
+                }
+              },
+              grid: { color: function (c) { var s = c.tick && c.tick.label; return (Array.isArray(s)) ? '#475569' : 'rgba(0,0,0,0)'; } }
+            }
+          },
+          plugins: {
+            legend: { labels: { color: '#cbd5e1', usePointStyle: true, filter: function (i) { return i.text !== '最大' && i.text !== '最小'; } } },
+            tooltip: {
+              filter: function (i) { return i.datasetIndex >= 2; },
+              callbacks: {
+                title: function (items) { return items.length ? items[0].label : ''; },
+                label: function (i) {
+                  if (i.datasetIndex >= 4) {
+                    var c = (i.chart.$calls || {})[i.dataIndex]; if (!c) return '';
+                    return '発信 ' + c.t.substring(11) + ' ' + c.result + ' ' + c.code + (c.gps ? ' GPS ' + c.gps : '');
+                  }
+                  var b = (lastTrend && lastTrend.view) ? lastTrend.view[i.dataIndex] : null;
+                  if (i.datasetIndex === 2 && b) return 'CSQ 平均 ' + b.a + ' (最小 ' + b.lo + ' / 最大 ' + b.hi + ')' + (b.f ? ' 取得失敗 ' + b.f : '');
+                  return i.dataset.label + ' ' + i.formattedValue;
+                }
+              }
+            }
+          }
+        },
+        plugins: [eventLines]
+      });
+      var segs = $('trendSeg').querySelectorAll('button');
+      for (var k = 0; k < segs.length; k++) {
+        segs[k].onclick = function () {
+          for (var m = 0; m < segs.length; m++) segs[m].classList.remove('on');
+          this.classList.add('on'); trendDays = parseInt(this.getAttribute('data-d'), 10);
+          renderTrend(lastTrend);
+        };
+      }
+      $('btnEvAdd').onclick = function () {
+        $('evForm').hidden = false; $('evErr').textContent = '';
+        $('evTime').value = nowText().substring(0, 16); $('evText').value = ''; $('evText').focus();
+      };
+      $('evCancel').onclick = function () { $('evForm').hidden = true; };
+      $('evSave').onclick = saveEvent;
+      loadTrend();
+      setInterval(loadTrend, 60000);
+    }
+
+    function loadTrend() {
+      var old = $('trendScript');
+      if (old) old.remove();
+      var s = document.createElement('script');
+      s.id = 'trendScript'; s.charset = 'utf-8';
+      s.onload = function () { renderTrend(window.CSQ_TREND); };
+      s.onerror = function () { $('trendInfo').textContent = 'trend.js がありません (Monitor が作ります)'; };
+      s.src = 'trend.js?t=' + Date.now();
+      document.head.appendChild(s);
+    }
+
+    function renderTrend(d) {
+      if (!d || !d.buckets || !trendChart) return;
+      lastTrend = d;
+      var all = d.buckets;
+      var from = toMin(all.length ? all[all.length - 1].t : nowText()) - trendDays * 1440;
+      var v = all.filter(function (b) { return toMin(b.t) >= from; });
+      d.view = v;
+      if (!v.length) return;
+      var startMin = toMin(v[0].t), bm = d.bucketMin || 15;
+      function idx(t) { return Math.floor((toMin(t) - startMin) / bm); }
+
+      var mx = d.rssiMax || 55;
+      trendChart.options.scales.y.max = mx;
+      trendChart.data.labels = v.map(function (b) { return b.t; });
+      trendChart.data.datasets[0].data = v.map(function (b) { return b.hi; });
+      trendChart.data.datasets[1].data = v.map(function (b) { return b.lo; });
+      trendChart.data.datasets[2].data = v.map(function (b) { return b.a; });
+      trendChart.data.datasets[3].data = v.map(function (b) { return b.b; });
+
+      // 発信試験の点 (成功は上から 2、失敗は上から 4 の高さに並べる)
+      var ok = v.map(function () { return null; }), ng = ok.slice(), callAt = {};
+      var calls = (d.calls || []).filter(function (c) { return toMin(c.t) >= startMin; });
+      calls.forEach(function (c) {
+        var i = idx(c.t); if (i < 0 || i >= v.length) return;
+        callAt[i] = c;
+        if (c.result === '成功') ok[i] = mx - 2; else ng[i] = mx - 4;
+      });
+      trendChart.data.datasets[4].data = ok;
+      trendChart.data.datasets[5].data = ng;
+      trendChart.$calls = callAt;
+
+      // コメントの縦線
+      var evs = (d.events || []).filter(function (e) { return toMin(e.t) >= startMin; });
+      trendChart.$events = evs.map(function (e) { return { i: idx(e.t), text: e.text }; });
+      trendChart.update();
+
+      // 要約
+      var n = 0, sum = 0, fail = 0, berBad = 0, lo = 999, hi = -1;
+      v.forEach(function (b) { if (b.a !== null) { n++; sum += b.a; lo = Math.min(lo, b.lo); hi = Math.max(hi, b.hi); } fail += b.f || 0; if (b.b > 0) berBad++; });
+      var cOk = calls.filter(function (c) { return c.result === '成功'; }).length;
+      $('trendInfo').textContent = v[0].t + ' 〜 ' + v[v.length - 1].t + '(' + bm + ' 分ごと、' + hm(d.made) + ' 更新)';
+      $('trendSum').innerHTML =
+        '<span>CSQ 平均 <b>' + (n ? (Math.round(sum / n * 10) / 10) : '--') + '</b>(最小 ' + (n ? lo : '--') + ' / 最大 ' + (n ? hi : '--') + ')</span>' +
+        '<span>BER が 0 より大きい区間 <b>' + berBad + '</b></span>' +
+        '<span>取得失敗 <b>' + fail + '</b> 回</span>' +
+        '<span>発信試験 <b>' + cOk + ' / ' + calls.length + '</b> 成功' + (calls.length ? '(' + Math.round(cOk * 100 / calls.length) + '%)' : '') + '</span>';
+
+      // 時間帯別の成功率
+      var hs = [];
+      for (var h = 0; h < 24; h++) hs.push({ ok: 0, n: 0 });
+      calls.forEach(function (c) { var h2 = parseInt(c.t.substring(11, 13), 10); hs[h2].n++; if (c.result === '成功') hs[h2].ok++; });
+      $('trendHours').innerHTML = hs.map(function (x, h3) {
+        var cls = '';
+        if (x.n) { var r = x.ok / x.n; cls = r >= 0.9 ? 'g' : (r >= 0.5 ? 'y' : 'r'); }
+        return '<div class="' + cls + '" title="' + h3 + ' 時台: ' + x.ok + ' / ' + x.n + ' 成功">' + h3 + '<br>' + (x.n ? x.ok + '/' + x.n : '-') + '</div>';
+      }).join('');
+
+      // コメントの一覧 (新しい順)
+      $('evList').innerHTML = evs.slice().reverse().map(function (e) { return '<li><span>' + esc(e.t) + '</span>' + esc(e.text) + '</li>'; }).join('');
+
+      // 受信グラフにも同じコメントの線を出す
+      if (chart) { chart.$eventsSrc = d.events || []; setLiveEvents(); chart.update(); }
+
+      // 画面で追加したコメントが取り込まれたか
+      if (pendingEvId) {
+        if ((d.events || []).some(function (e) { return e.id === pendingEvId; })) { setEvMsg('コメントを追加しました (反映済み)', 'ok'); pendingEvId = ''; }
+        else if (Date.now() - pendingEvSince > 30000) setEvMsg('まだ取り込まれていません。Monitor が動いているか、保存したファイルが受け取り先にあるかを確認してください。', 'warn');
+      }
+    }
+
+    function setEvMsg(text, cls) { var m = $('evMsg'); m.textContent = text; m.className = 'call-msg ' + (cls || ''); }
+
+    function saveEvent() {
+      var tm = $('evTime').value.trim().replace('T', ' '), tx = $('evText').value.trim();
+      if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(tm)) { $('evErr').textContent = '日時は YYYY-MM-DD HH:MM で入れてください'; return; }
+      if (!tx) { $('evErr').textContent = '内容を入れてください'; return; }
+      var ev = { t: tm, text: tx, id: nowText() };
+      var blob = new Blob([JSON.stringify(ev)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'csqwatch_event.json';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      pendingEvId = ev.id; pendingEvSince = Date.now();
+      $('evForm').hidden = true;
+      setEvMsg('保存しました。Monitor の取り込みを待っています… (反映は 1 分以内)', 'warn');
+      setTimeout(loadTrend, 8000); setTimeout(loadTrend, 15000);
+    }
+
+    window.onload = function () { initCall(); initChart(); initTrend(); };
   </script>
 </body>
 </html>

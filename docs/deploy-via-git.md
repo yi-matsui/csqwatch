@@ -31,7 +31,7 @@ USB メモリを持ち込めない環境向けの手順です。
 
 3. push の前に、`git status` と `git ls-files` で次のものが**含まれていない**ことを確認します(`.gitignore` で除外済みです)。
    - `Config.ps1`(COM 番号・発信先)、`CallTable.json`(発信試験のタイムテーブル。着信番号が入る)
-   - `logs\`(CSV・試験ログ・`monitor_running.txt`)、`data.js`、`probe_日時.txt`(実機の値や機器の情報が入ります)
+   - `logs\`(CSV・試験ログ・`events.csv`・`monitor_running.txt`)、`data.js`、`trend.js`、`probe_日時.txt`(実機の値や機器の情報が入ります)
    - `profile_<ブラウザ名>\`(監視画面用のブラウザプロファイル)
    - `AtIo.exe`
 

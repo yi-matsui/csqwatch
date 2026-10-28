@@ -46,12 +46,22 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 | `Import-CallTable` | なし | なし | 起動時に `CallTable.json` を読む。なければ初期のものを作る。壊れていれば上書きせず、発信試験を止めておく | 起動時 |
 | `Receive-CallTable` | なし | なし | 受け取り先と `app\` から `csqwatch_calltable*.json` を探し、最も新しいものを確かめて取り込む。取り込んだファイルは `logs\calltable_history\` へ移す | メインループ(5 秒ごと) |
 | `Get-CsqValue` | `Res`(応答) | `@{ r; b }` または `$null` | 応答から最初の `+CSQ: <rssi>,<ber>` を取り出す | `Invoke-TestCall`、`Get-CallJudgement` |
-| `Get-CallJudgement` | `Res`(発信の応答) | `@{ result; code; samples }` | 区切り行(`--- during` / `--- after`)で応答を分け、`ATD` の応答から成否を、通話中の部分から `AT+CSQ` の値の並びを取り出す | `Invoke-TestCall` |
+| `Get-CallJudgement` | `Res`(発信の応答) | `@{ result; code; samples; stage; cause; causeText; gps; ciev; notify }` | 区切り行(`--- during` / `--- after`)で応答を分け、`ATH` より前の部分から、`ATD` の応答・独自通知(`+SKCPI` の段階、`+SKCCSI` の切断と理由、`+SKGPSPOSI`、`+CIEV: 2`)を読んで成否を決める。通話中の `AT+CSQ` の値は、切断の通知より前のものだけを取り出す。段階の名前は `$CallStageName`、理由番号の意味は `$Q850Text` | `Invoke-TestCall` |
 | `Get-CallCsvPath` | `d`(日時) | パス | その月の発信試験の CSV `logs\call_YYYYMM.csv` | `Add-CallCsvLine`、`Import-CallResults` |
-| `Add-CallCsvLine` | `d`、`line` | なし | 発信試験の CSV に 1 行追記する(なければ見出し付きで作る) | `Invoke-TestCall` |
+| `Add-CallCsvLine` | `d`、`line` | なし | 発信試験の CSV に 1 行追記する(なければ見出し付きで作る。列を足す前の見出しなら、見出しの行だけ置き換える) | `Invoke-TestCall` |
 | `Get-Cell` | `v` | 文字列 | 値がなければ空欄、あればそのままの文字列(CSV と画面で共通) | `Invoke-TestCall` |
 | `Import-CallResults` | なし | なし | 起動時に、今日の発信試験の結果を CSV から読み戻す | 起動時 |
 | `Invoke-TestCall` | `Slot`(タイムテーブルの行)、`now`(日時) | なし | 発信試験 1 回分。直前の `AT+CSQ` → `ATD<番号>;`(通話中も `AT+CSQ`)→ `ATH` → 直後の `AT+CSQ`。判定して、発信試験の CSV・取得結果の CSV(印)・試験ログ・`data.js` に反映する | メインループ |
+
+### Monitor.ps1 の評価トレンドとコメントの関数
+
+| 関数 | 引数 | 戻り値 | 役割 | 呼び出し元 |
+|---|---|---|---|---|
+| `Get-TrendMonths` | `From`、`To` | 月の一覧 | 期間にかかる月を並べる(月をまたいで CSV を読むため) | `Read-TrendLines` |
+| `Read-TrendLines` | `Prefix`、`From`、`To`、`OldPrefix` | 行の並び | 期間内の CSV の行を集める(`csq_` / `call_`。受信ログは旧名 `isat_` も読む) | `Write-Trend` |
+| `Read-Events` | `From` | コメントの並び | `logs\events.csv` から期間内のコメントを読む(`日時,内容,Id`。Id は空でもよい) | `Write-Trend` |
+| `Write-Trend` | なし | なし | `$TrendDays` 日分の受信ログを 15 分ごとにまとめ(平均・最小・最大・BER の最大・取得失敗・圏外)、発信試験の結果とコメントを添えて `trend.js` に書き出す | 起動時、メインループ(10 分ごと)、発信試験のあと、`Receive-Events` |
+| `Receive-Events` | なし | なし | 受け取り先と `app\` から `csqwatch_event*.json` を探し、確かめて `events.csv` に追記する。取り込んだファイルは `logs\calltable_history\` へ移す | メインループ(5 秒ごと) |
 
 ### Monitor.ps1 の関数以外の処理(上から順に)
 
@@ -71,7 +81,7 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 | 関数 | 引数 | 戻り値 | 役割 | 呼び出し元 |
 |---|---|---|---|---|
 | `Invoke-At` | `Cmd`、`Wait`(秒、既定 3)、`After`・`During`・`DuringEvery`(省略可。`During` は `After` があるときだけ渡す) | 応答の文字列 | `AtIo.exe <Port> <Baud> <Cmd> <Wait> [After] [During] [DuringEvery]` を呼び、標準出力と標準エラー出力をまとめて返す。`-Mock` のときは `Get-MockResponse` を返す。呼び出しに失敗したら `IO Error: …` を返す | `Invoke-AtLog`、`Probe.ps1` |
-| `Get-MockResponse` | `Cmd`、`Wait`、`After`、`During`、`DuringEvery` | 応答の文字列 | `-Mock` 用の疑似応答。`ATD` には `AtIo.exe` と同じ区切り行つきの応答を返す(8 割成功、残りは呼出中の `NO CARRIER`・`BUSY`・`+CME ERROR`。通話中は rssi が 3〜10 下がる)。`AT+CSQ` は rssi 20〜50(IsatPhone 2 の実測付近)でゆらぐ値、`AT+CREG?` は rssi が 25 未満なら探索中。ほかに `AT+COPS?`・`AT+CBC`(実機の IsatPhone 2 では使用禁止)・`AT`・`ATH`。それ以外は `ERROR` | `Invoke-At` |
+| `Get-MockResponse` | `Cmd`、`Wait`、`After`、`During`、`DuringEvery` | 応答の文字列 | `-Mock` 用の疑似応答。`ATD` には `AtIo.exe` と同じ区切り行と、IsatPhone 2 の独自通知を実機の記録に似せて返す(7 割成功。1 割は途中で GPS 状態が 0 になり網から理由 31 で切断、`ATD` は `OK`。残りは呼出中の `NO CARRIER`・`BUSY`・`+CME ERROR`。通話中は rssi が 3〜10 下がる)。`AT+CSQ` は rssi 20〜50(IsatPhone 2 の実測付近)でゆらぐ値、`AT+CREG?` は rssi が 25 未満なら探索中。ほかに `AT+COPS?`・`AT+CBC`(実機の IsatPhone 2 では使用禁止)・`AT`・`ATH`。それ以外は `ERROR` | `Invoke-At` |
 
 ## Browser.ps1(監視画面を開く)
 
@@ -114,11 +124,18 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 | `md(s)` / `hm(s)` | 日時の文字列から「月/日」・「時:分」を取り出す(横軸のラベル用) |
 | `loadData()` | `<script src="data.js?t=…">` を差し替えて読み込み、読めたら `render` を呼ぶ。読めなければ `NO DATA` |
 | `render(d)` | `window.CSQ_DATA` からカード・見出し(機器名)・グラフ・発信試験の欄を更新する。取得失敗は `--` と赤の `取得失敗`、端末の 99 は `圏外 (99)`。グラフの縦軸は `rssiMax` に合わせる。最終更新が周期の 2 倍 + 10 秒より古ければ `STALE` |
-| `renderCall(c)` | 発信試験の欄を描く。有効/停止・ON の数・今日の成功数、取り込みの状態(「反映済み」・取り込めなかった理由)、24 行の表(今日の結果・応答・rssi と BER の直前/通話中/直後・差) |
+| `renderCall(c)` | 発信試験の欄を描く。有効/停止・ON の数・今日の成功数、取り込みの状態(「反映済み」・取り込めなかった理由)、24 行の表(今日の結果・応答と切断理由と到達段階・GPS・表示器の最小・rssi と BER の直前/通話中/直後・差) |
 | `openEditor()` / `closeEditor()` | タイムテーブルの編集欄を開く・閉じる(表示側の表と切り替える) |
 | `editorRows()` | 編集欄の 24 行の入力欄(ON・時刻・番号)をまとめて返す |
 | `saveEditor()` | 編集欄の内容を確かめ(Monitor と同じ確認)、確認の画面を出してから `csqwatch_calltable.json` をダウンロードとして保存する。保存した `savedAt` を覚えて、取り込まれたかを見る |
 | `initCall()` | 発信試験の欄のボタンに処理を割り当てる |
+| `eventLines`(Chart.js のプラグイン) | グラフを描いたあとに、変化のコメントを黄色の縦線とラベルで重ねる(`chart.$events`)。受信グラフと評価トレンドの両方で使う |
+| `setLiveEvents()` | 受信グラフの各点の時刻と照らして、コメントの縦線の位置を決める |
+| `initTrend()` | 評価トレンドのグラフを作り、期間の切り替え・コメントの追加のボタンを割り当て、`loadTrend` を 1 分ごとに呼ぶ |
+| `loadTrend()` | `<script src="trend.js?t=…">` を差し替えて読み込み、`renderTrend` を呼ぶ |
+| `renderTrend(d)` | 選んだ期間を切り出し、CSQ の平均・最小〜最大の帯・BER の最大・発信試験の点・コメントの縦線を描く。期間の要約、時間帯別の成功率、コメントの一覧も出す |
+| `saveEvent()` | コメントの日時と内容を確かめ、`csqwatch_event.json` をダウンロードとして保存する。取り込まれたかを `trend.js` のコメントの Id で確かめる |
+| `toMin(s)` | 日時の文字列を分に直す(位置の計算用) |
 | `esc` / `pad2` / `nowText` / `hhmm` / `setCallMsg` | 文字の置き換え・ゼロ埋め・現在日時・時刻だけ取り出す・欄の上のメッセージ |
 
 `index.html` の右上の「説明書」は `manual.html` へのリンクです(別の窓で開く)。

@@ -47,13 +47,13 @@ img { max-width:100%; border:1px solid var(--line); border-radius:6px; }
 <body>
 <header class="top">
   <h1>CsqWatch 説明書</h1>
-  <p>Author: yuichi ／ 作成 2026-10-27 ／ README と docs の MD から生成(Ctrl+F で検索できます)</p>
+  <p>Author: yuichi ／ 作成 2026-10-28 ／ README と docs の MD から生成(Ctrl+F で検索できます)</p>
 </header>
 <main>
 <nav class="toc" id="toc">
 <h2>目次</h2>
 <ol>
-<li><a href="#doc-readme">はじめに・使い方</a><ol><li><a href="#readme-at-コマンドで話せる通信機器の受信状態atcsqを監視する小さなツールです">AT コマンドで話せる通信機器の受信状態(AT+CSQ)を監視する小さなツールです。</a></li><li><a href="#readme-評価版のイメージ">評価版のイメージ</a></li><li><a href="#readme-将来の構想">将来の構想</a></li><li><a href="#readme-特長">特長</a></li><li><a href="#readme-仕組み">仕組み</a></li><li><a href="#readme-動作環境">動作環境</a></li><li><a href="#readme-運用する人へこれだけ覚えてください">運用する人へ(これだけ覚えてください)</a></li><li><a href="#readme-クイックスタート">クイックスタート</a></li><li><a href="#readme-バッチファイルの使い方">バッチファイルの使い方</a></li><li><a href="#readme-画面の見かた">画面の見かた</a></li><li><a href="#readme-発信試験">発信試験</a></li><li><a href="#readme-監視画面とブラウザ">監視画面とブラウザ</a></li><li><a href="#readme-試験ログ">試験ログ</a></li><li><a href="#readme-ファイル構成">ファイル構成</a></li><li><a href="#readme-よく触る場所">よく触る場所</a></li><li><a href="#readme-説明書html">説明書(HTML)</a></li><li><a href="#readme-機器ごとの注意">機器ごとの注意</a></li><li><a href="#readme-旧名isatmonからの移行">旧名(IsatMon)からの移行</a></li><li><a href="#readme-注意">注意</a></li><li><a href="#readme-検証状況">検証状況</a></li><li><a href="#readme-ライセンス">ライセンス</a></li><li><a href="#readme-商標">商標</a></li><li><a href="#readme-サードパーティ">サードパーティ</a></li></ol></li>
+<li><a href="#doc-readme">はじめに・使い方</a><ol><li><a href="#readme-at-コマンドで話せる通信機器の受信状態atcsqを監視する小さなツールです">AT コマンドで話せる通信機器の受信状態(AT+CSQ)を監視する小さなツールです。</a></li><li><a href="#readme-評価版のイメージ">評価版のイメージ</a></li><li><a href="#readme-将来の構想">将来の構想</a></li><li><a href="#readme-特長">特長</a></li><li><a href="#readme-仕組み">仕組み</a></li><li><a href="#readme-動作環境">動作環境</a></li><li><a href="#readme-運用する人へこれだけ覚えてください">運用する人へ(これだけ覚えてください)</a></li><li><a href="#readme-クイックスタート">クイックスタート</a></li><li><a href="#readme-バッチファイルの使い方">バッチファイルの使い方</a></li><li><a href="#readme-画面の見かた">画面の見かた</a></li><li><a href="#readme-評価トレンド">評価トレンド</a></li><li><a href="#readme-発信試験">発信試験</a></li><li><a href="#readme-監視画面とブラウザ">監視画面とブラウザ</a></li><li><a href="#readme-試験ログ">試験ログ</a></li><li><a href="#readme-ファイル構成">ファイル構成</a></li><li><a href="#readme-よく触る場所">よく触る場所</a></li><li><a href="#readme-説明書html">説明書(HTML)</a></li><li><a href="#readme-機器ごとの注意">機器ごとの注意</a></li><li><a href="#readme-旧名isatmonからの移行">旧名(IsatMon)からの移行</a></li><li><a href="#readme-注意">注意</a></li><li><a href="#readme-検証状況">検証状況</a></li><li><a href="#readme-ライセンス">ライセンス</a></li><li><a href="#readme-商標">商標</a></li><li><a href="#readme-サードパーティ">サードパーティ</a></li></ol></li>
 <li><a href="#doc-architecture">設計メモ</a><ol><li><a href="#architecture-データの流れ">データの流れ</a></li><li><a href="#architecture-設計判断">設計判断</a></li><li><a href="#architecture-datajs-の形式">data.js の形式</a></li><li><a href="#architecture-csv-の形式">CSV の形式</a></li><li><a href="#architecture-発信試験の-csv">発信試験の CSV</a></li><li><a href="#architecture-起動時に作られるもの">起動時に作られるもの</a></li><li><a href="#architecture-文字コードの規約">文字コードの規約</a></li><li><a href="#architecture-補足">補足</a></li></ol></li>
 <li><a href="#doc-functions">関数表</a><ol><li><a href="#functions-ファイルの関係">ファイルの関係</a></li><li><a href="#functions-monitorps1収集の本体">Monitor.ps1(収集の本体)</a></li><li><a href="#functions-commonps1at-コマンド送信の共通部">Common.ps1(AT コマンド送信の共通部)</a></li><li><a href="#functions-browserps1監視画面を開く">Browser.ps1(監視画面を開く)</a></li><li><a href="#functions-probeps1対応コマンドの調査">Probe.ps1(対応コマンドの調査)</a></li><li><a href="#functions-atiocsシリアル-ioc">AtIo.cs(シリアル I/O、C#)</a></li><li><a href="#functions-indexhtml画面javascript">index.html(画面、JavaScript)</a></li><li><a href="#functions-toolsbuild-manualps1説明書の生成">tools/Build-Manual.ps1(説明書の生成)</a></li><li><a href="#functions-バッチファイル">バッチファイル</a></li></ol></li>
 <li><a href="#doc-at-commands">AT コマンドの対応範囲</a><ol><li><a href="#at-commands-現状でわかっていること">現状でわかっていること</a></li><li><a href="#at-commands-実機で調べる--probe">実機で調べる — Probe</a></li><li><a href="#at-commands-項目を画面に足す">項目を画面に足す</a></li><li><a href="#at-commands-gps-の衛星数信号強度">GPS の衛星数・信号強度</a></li></ol></li>
@@ -93,6 +93,7 @@ C# を書ける人がいなくても保守できる構成です。</p>
 <li><strong>社外監視の窓を邪魔しない</strong> — 画面は社外監視 (VPN) とは別のブラウザ・別のプロセスで開き、Monitor 自身も CPU 優先度「通常以下」で動きます</li>
 <li><strong>入口は <code>Monitor.bat</code> ひとつ</strong> — 監視が止まっていれば始め、動いていれば監視画面を前面に出すだけ。何度押しても、監視が二重に動くことも、画面の窓が増えることもありません</li>
 <li><strong>試験ログ</strong> — 送ったコマンド・生の応答・所要時間・解析結果などを 1 行ずつ記録し、不具合解析とデータ取得の検証に使えます</li>
+<li><strong>監視と評価を分けて見る</strong> — 監視は 3 分ごとの全点を 3 日分(横スクロール)、評価は 15 分ごとにまとめた 1 週間のトレンドで見ます。変化(同軸を抜いた・衛星出力 UP など)のコメントを、どちらのグラフにも縦線で表示します</li>
 <li><strong>発信試験</strong> — 24 個のタイムテーブル(各時 1 行)で定時に発信し、成功・失敗と、発信直前・通話中・切断直後の受信レベル(rssi)と BER を記録します。タイムテーブルは監視画面で編集できます</li>
 </ul>
 <h2 id="readme-仕組み">仕組み</h2>
@@ -192,13 +193,32 @@ Monitor.bat -IntervalSec 10      周期を 10 秒にする (動作確認用)</co
 <tr><td>右上 <strong>STALE</strong>(赤)</td><td>監視(Monitor)が止まっている</td></tr>
 </tbody>
 </table>
-<p>受信レベルのグラフは、過去 24 時間分(<code>Config.ps1</code> の <code>$HistoryHours</code>)を横に長く描きます。<strong>横スクロールで過去を見られます。</strong></p>
+<p>受信レベルのグラフ(監視用)は、過去 3 日分(<code>Config.ps1</code> の <code>$HistoryHours</code>、既定 72 時間)の 3 分ごとの全点を横に長く描きます。<strong>横スクロールで過去を見られます。</strong></p>
 <ul>
 <li>横軸のラベルは「時刻」と「月/日」の 2 段です。点にマウスを当てると、日付つきの時刻が出ます。</li>
 <li>縦軸の目盛りは、スクロールしても左に残ります。</li>
 <li>ふだんは右端(最新)を表示し、更新のたびに右端に合わせます。過去を見ている間は位置を動かさず、<strong>「最新へ ▶」</strong> で右端に戻ります。</li>
 <li>グラフの上に、表示している期間と点の数が出ます。</li>
+<li>変化のコメントがあれば、その時刻に黄色の縦線とラベルを出します。</li>
 </ul>
+<h2 id="readme-評価トレンド">評価トレンド</h2>
+<p>1 週間単位の評価のために、受信ログと発信試験の結果を <strong>15 分ごとにまとめて</strong> 1 つのグラフに描きます(画面の一番下)。</p>
+<ul>
+<li>期間は <strong>1 日 / 3 日 / 1 週間</strong>(既定)から選びます。表示できる日数は <code>Config.ps1</code> の <code>$TrendDays</code>(既定 7 日)です。</li>
+<li>青の線は 15 分ごとの CSQ の平均、薄い帯は最小〜最大、橙の階段線は BER の最大(右の目盛り)です。</li>
+<li>発信試験の結果を、成功は緑の点、失敗は赤の × で重ねます。点に触れると、時刻・結果・切断理由・到達段階・GPS が出ます。</li>
+<li>何も描かれていない時間は、Monitor が止まっていたか、すべて取得失敗だった時間です。</li>
+<li>グラフの下に、期間の要約(CSQ の平均・最小・最大、BER が 0 より大きい区間の数、取得失敗の回数、発信試験の成功率)と、<strong>時間帯別の発信試験の成功</strong>(0〜23 時。緑 90% 以上 / 黄 50% 以上 / 赤 50% 未満)を出します。時間帯で成功率が変わるかどうかは、地上の携帯電話などの干渉を疑うときの手がかりになります。</li>
+<li><code>trend.js</code> は Monitor が 10 分ごと(と、発信試験・コメントの追加のあと)に作り直します。画面は 1 分ごとに読み直します。</li>
+</ul>
+<h3 id="readme-変化のコメント">変化のコメント</h3>
+<p>同軸の抜き差し、減衰器の変更、衛星側の対応、ファームの更新など、<strong>結果に影響しそうな変化</strong>を日時つきで書き込みます。評価トレンドと受信グラフに黄色の縦線で表示され、グラフの下に一覧が出ます。</p>
+<ol>
+<li>評価トレンドの <strong>「コメントを追加」</strong> を押します。</li>
+<li>日時(初期値は今。<code>YYYY-MM-DD HH:MM</code>)と内容を入れて <strong>「保存」</strong> を押します。</li>
+<li><code>csqwatch_event.json</code> がダウンロードフォルダに保存され、Monitor が取り込んで <code>logs\events.csv</code> に追記します。取り込まれると「反映済み」と出ます。</li>
+</ol>
+<p>過去の日時を指定して、あとから書き足すこともできます。直したり消したりするときは、<code>logs\events.csv</code> をメモ帳で開いて直接直してください(<code>日時,内容,Id</code> の形。Id は空でかまいません。Excel で開いたままにしないでください)。</p>
 <p>発信試験の欄の見かたは「<a href="#readme-発信試験">発信試験</a>」を参照してください。</p>
 <h2 id="readme-発信試験">発信試験</h2>
 <p>決まった時刻に試験の発信をして、成功・失敗と、そのときの受信レベル(rssi)・BER を記録します。
@@ -227,17 +247,32 @@ Monitor.bat -IntervalSec 10      周期を 10 秒にする (動作確認用)</co
 <li><code>ATD&lt;番号&gt;;</code> で発信。<code>OK</code> を受けてから <code>$CallDuringEverySec</code> 秒(既定 5 秒)ごとに <code>AT+CSQ</code> を送る(通話中の測定)。呼出秒数が過ぎたら <code>ATH</code> で切る</li>
 <li>切断直後に <code>AT+CSQ</code></li>
 </ol>
-<p>成否は <strong><code>ATD</code> の応答</strong>で判定します。<code>OK</code> なら成功、<code>ERROR</code>・<code>+CME ERROR</code>・<code>BUSY</code>・<code>NO DIALTONE</code>・応答なし・COM のエラーは失敗です。<code>OK</code> のあと呼出中に <code>NO CARRIER</code> などが来たときも失敗(「呼出中に終了」)とします。
-<code>OK</code> は「発信を受け付けた」という意味で、相手が実際に鳴ったかまでは保証しません。</p>
+<p><strong>IsatPhone 2 は、失敗しても <code>ATD</code> に <code>OK</code> を返し、<code>NO CARRIER</code> も出しません</strong>(2026-10-28 に実機で確認)。そこで、通話中に端末が自分から送ってくる独自の通知(<code>+SKCPI</code> 呼の進み具合・<code>+SKCCSI</code> 通話の状態と切断理由・<code>+SKGPSPOSI</code> GPS の位置・<code>+CIEV</code> 表示器)を読んで判定します。</p>
+<table>
+<thead><tr><th>判定</th><th>条件</th></tr></thead>
+<tbody>
+<tr><td>失敗</td><td>COM のエラー、<code>ATD</code> の応答が <code>OK</code> でない(<code>ERROR</code>・<code>+CME ERROR</code>・<code>BUSY</code> など)、応答なし</td></tr>
+<tr><td>失敗(切断 理由 n)</td><td>こちらの <code>ATH</code> より前に、網から切断された(<code>+SKCCSI</code> の状態 6、<code>+SKCPI</code> の段階 1)。理由番号(ITU-T Q.850)と意味を記録</td></tr>
+<tr><td>失敗(呼出中に終了)</td><td><code>ATH</code> より前に <code>NO CARRIER</code> などが来た</td></tr>
+<tr><td>失敗(回線未確立)</td><td>独自通知はあるのに、回線割当まで進まなかった</td></tr>
+<tr><td>成功(呼出後に切断)</td><td>相手の呼出(呼出音)まで進んだあと、理由 16・18・19(通常の切断・応答なし)で切れた</td></tr>
+<tr><td>成功</td><td>上のどれにも当たらない</td></tr>
+</tbody>
+</table>
+<p>独自通知を出さない機器では、これまでどおり <code>ATD</code> の応答(<code>OK</code> なら成功)で判定します。通知の意味は公開資料がなく、実機の記録からの推定です(「<a href="#doc-at-command-table">AT コマンド表</a>」の「IsatPhone 2 の独自通知」)。</p>
+<p><strong>実機で確かめたこと</strong>:相手の呼出音が鳴った回は、<code>+SKCPI</code> が段階 5・音=1(経過通知+呼出音)まで進みました(<code>ALERT</code> は出ません)。画面ではこれを「到達: 相手を呼出(呼出音)」と表示します。</p>
+<p><strong>実機で見つかった失敗の例</strong>:発信の途中で <code>+SKGPSPOSI: 0</code>(GPS の位置なし)になり、網から理由 31 で切断、切断後に <code>+SKGPSPOSI: 1</code> に戻りました。GPS の同軸は別系統なので、GPS が 0 になるのは失敗の原因ではなく、失敗した回に現れる状態と考えています(意味は調査中)。比べられるように GPS の状態も記録しています。</p>
 <p>通話中の <code>AT+CSQ</code> は、発信の応答(<code>OK</code>)を受け取ってから送ります。発信の途中で文字を送ると発信そのものが中断される機器があるためです。機器が通話中に AT コマンドを受け付けない場合は、通話中の値が「取得なし」になり、試験ログに WARN が出ます(直前・直後の値と成否はそのまま記録します)。</p>
 <h3 id="readme-発信試験の欄の見かた">発信試験の欄の見かた</h3>
 <table>
 <thead><tr><th>欄</th><th>意味</th></tr></thead>
 <tbody>
 <tr><td>今日の結果</td><td><code>✓ 成功</code> / <code>✗ 失敗</code>(と実施時刻)。ON なのに結果がない行は、時刻を過ぎていれば <code>未実施</code>、これからなら <code>予定</code></td></tr>
-<tr><td>応答</td><td><code>OK</code>、<code>BUSY</code>、<code>+CME ERROR: 600</code>、<code>NO CARRIER (呼出中に終了)</code> など</td></tr>
+<tr><td>応答・切断理由 / 到達段階</td><td><code>OK / 到達: 経過通知</code>、<code>切断 理由31 (正常、その他) / 到達: 発信</code>、<code>BUSY</code> など。到達段階は、発信 → 回線割当 → 呼の処理中 → 経過通知 → 相手を呼出(呼出音)→ 応答 のうち、どこまで進んだか</td></tr>
+<tr><td>GPS</td><td>発信中の GPS の位置の変化(<code>1</code>=あり、<code>0</code>=なし。例 <code>0→1</code>)。0 になった回はオレンジ</td></tr>
+<tr><td>表示器 最小</td><td>発信中のアンテナ表示(<code>+CIEV: 2</code>、0〜5)の最小</td></tr>
 <tr><td>受信レベル 直前 / 通話中 平均・最小 / 直後</td><td><code>AT+CSQ</code> の rssi</td></tr>
-<tr><td>差</td><td>通話中の平均 − 直前。<strong>−5 以下をオレンジで強調</strong>します(送信中に受信が下がっている)</td></tr>
+<tr><td>差</td><td>通話中の平均 − 直前。<strong>−5 以下をオレンジで強調</strong>します(送信中に受信が下がっている)。網から切断されたあとの値は通話中に数えません</td></tr>
 <tr><td>BER 直前 / 通話中 最大 / 直後</td><td><code>AT+CSQ</code> の ber(IsatPhone 2 は 0〜15)</td></tr>
 </tbody>
 </table>
@@ -314,7 +349,8 @@ Monitor.bat -IntervalSec 10      周期を 10 秒にする (動作確認用)</co
 ├─ manual.html          説明書 (README と docs を 1 冊にした HTML。tools\build_manual.bat で生成)
 ├─ chart.umd.min.js     Chart.js 4.5.1 (同梱)
 ├─ *.bat                ダブルクリック用ランチャ
-└─ (実行時に作られる)    logs\ (CSV・発信試験の CSV・試験ログ)、data.js、CallTable.json (発信試験のタイムテーブル)、
+└─ (実行時に作られる)    logs\ (CSV・発信試験の CSV・試験ログ・events.csv)、data.js、trend.js (評価トレンド)、
+                        CallTable.json (発信試験のタイムテーブル)、
                         profile_&lt;ブラウザ名&gt;\ (監視画面用プロファイル)
 tools/                  説明書 manual.html を作る道具 (build_manual.bat → Build-Manual.ps1)
 docs/                   設計メモ(architecture.md)、関数表(functions.md)、AT コマンド表(at-command-table.md)、
@@ -328,7 +364,9 @@ THIRD_PARTY_LICENSES/   同梱ライブラリのライセンス</code></pre>
 <tr><td>発信試験の時刻・番号・ON/OFF</td><td>監視画面の「タイムテーブルを編集」</td></tr>
 <tr><td>発信試験の通話中の測定間隔・受け取り先・発信してよい番号</td><td><code>Config.ps1</code> の <code>$CallDuringEverySec</code>・<code>$CallTableInbox</code>・<code>$CallNumberAllow</code></td></tr>
 <tr><td>信号の目盛りの最大値(グラフの縦軸)</td><td><code>Config.ps1</code> の <code>$RssiMax</code></td></tr>
-<tr><td>受信グラフに残す時間(横スクロールで見られる範囲)</td><td><code>Config.ps1</code> の <code>$HistoryHours</code>(既定 24 時間)</td></tr>
+<tr><td>受信グラフに残す時間(横スクロールで見られる範囲)</td><td><code>Config.ps1</code> の <code>$HistoryHours</code>(既定 72 時間 = 3 日。48 で 2 日)</td></tr>
+<tr><td>評価トレンドで見る日数</td><td><code>Config.ps1</code> の <code>$TrendDays</code>(既定 7 日)</td></tr>
+<tr><td>変化のコメントを直す・消す</td><td><code>logs\events.csv</code>(メモ帳で)</td></tr>
 <tr><td>画面に項目(カード)を足す</td><td><code>Config.ps1</code> の <code>$Extras</code></td></tr>
 <tr><td>登録状態の表示名を変える</td><td><code>Config.ps1</code> の <code>$RegText</code></td></tr>
 <tr><td>調べたい AT コマンドを足す</td><td><code>probe_commands.txt</code></td></tr>
@@ -389,6 +427,7 @@ THIRD_PARTY_LICENSES/   同梱ライブラリのライセンス</code></pre>
 </ul></li>
 <li>2026-10-21 に、COM の先に端末がない Windows 11 のノート PC(PowerShell 5.1)で、試験ログ・ポートエラー時の記録・二重起動の防止・Chrome での別窓表示を確認しました。</li>
 <li>入口の一本化(既存の画面を前面に出す)、取得失敗と圏外の表示の区別、<code>STOP</code> の記録は、PowerShell 7.4(Linux)の <code>-Mock</code> と端末なしの経路で確認し、2026-10-21 に Windows のノート PC で「既存の画面を前面に出す」動作も確認しました。</li>
+<li>2026-10-28 に、IsatPhone 2 で手動の発信(Tera Term)をして、成功と失敗のときの独自通知を記録しました。判定はこの記録に合わせています。</li>
 <li>発信試験(2026-10-26 追加)は、PowerShell 7.4 の <code>-Mock</code>、Chromium での編集・保存・取り込み、Mono でビルドした <code>AtIo.exe</code> と疑似モデム(通話中の <code>AT+CSQ</code>・<code>NO CARRIER</code>・無応答)で確認しています。<strong>Windows の PowerShell 5.1 と、IsatPhone 2 実機での発信(特に、通話中に <code>AT+CSQ</code> を受け付けるか)はまだ確認していません。</strong></li>
 </ul>
 <h2 id="readme-ライセンス">ライセンス</h2>
@@ -403,7 +442,7 @@ THIRD_PARTY_LICENSES/   同梱ライブラリのライセンス</code></pre>
 <section class="doc" id="doc-architecture">
 <p class="back"><a href="#toc">▲ 目次へ</a>　(元原稿: docs/architecture.md)</p>
 <h1 id="architecture-設計メモ">設計メモ</h1>
-<p>Author: yuichi(作成 2026-10-10 / 更新 2026-10-26)</p>
+<p>Author: yuichi(作成 2026-10-10 / 更新 2026-10-28)</p>
 <p>関数ごとの役割は <a href="#doc-functions">functions.md</a>、AT コマンドは <a href="#doc-at-command-table">at-command-table.md</a> を参照してください。</p>
 <h2 id="architecture-データの流れ">データの流れ</h2>
 <pre><code>Monitor.bat ─► Monitor.ps1
@@ -419,7 +458,8 @@ THIRD_PARTY_LICENSES/   同梱ライブラリのライセンス</code></pre>
                          ├─► logs/call_YYYYMM.csv     追記 (月別。発信試験の結果)
                          ├─► CallTable.json           タイムテーブル (取り込んだとき)
                          ├─► logs/test_YYYYMMDD.log   追記 (日別。試験ログ)
-                         └─► data.js                  毎回まるごと書き換え (一時ファイル → 置換)
+                         ├─► data.js                  毎回まるごと書き換え (一時ファイル → 置換)
+                         └─► trend.js                 10 分ごと。$TrendDays 日分を 15 分ごとにまとめたもの
 
 index.html ──(3 秒ごと)── &lt;script src=&quot;data.js?t=…&quot;&gt; を差し替えて読み込み → カード・グラフ・発信試験の表を更新
 index.html ──(「保存」)──► ダウンロードフォルダ\csqwatch_calltable.json  (Monitor が取り込む)</code></pre>
@@ -501,19 +541,37 @@ URL にクエリ(<code>?t=…</code>)を付けてキャッシュを避けてい�
 <ul>
 <li>1 回の試験は「発信直前の <code>AT+CSQ</code> → <code>ATD&lt;番号&gt;;</code>(通話中も <code>AT+CSQ</code>)→ <code>ATH</code> → 切断直後の <code>AT+CSQ</code>」です。</li>
 <li>送信中に端末が干渉を受けていないかを見るのが目的なので、通話中の rssi・BER を直前・直後と比べられるようにしています。画面の「差」(通話中の平均 − 直前)が大きなマイナスなら、送信中に受信が下がっています。</li>
-<li>成否は <code>ATD</code> の応答で判定します(<code>OK</code> なら成功)。<code>ATD…;</code> は多くの機器で、発信を受け付けた時点で <code>OK</code> を返すので、相手が鳴ったかまでは保証しません。呼出中に <code>NO CARRIER</code> などが来たら失敗(「呼出中に終了」)とします。</li>
-<li>判定は区切り行で分けた「<code>ATD</code> の応答」の部分だけで行います。通話中の <code>AT+CSQ</code> が <code>ERROR</code> を返しても、発信の成否には影響しません。</li>
+<li><strong>IsatPhone 2 は、失敗しても <code>ATD</code> に <code>OK</code> を返し、<code>NO CARRIER</code> も出しません。</strong> 代わりに、発信中に独自の通知(<code>+SKCPI</code>・<code>+SKCCSI</code>・<code>+SKGPSPOSI</code>・<code>+CIEV</code>)を自分から送ってきます。<code>AtIo.exe</code> は待っている間に受け取った文字をすべて出力するので、これらは新しいコマンドを送らなくても応答に入っています。</li>
+<li>判定は、区切り行で分けた「<code>ATH</code> より前」の部分で行います。順に、COM のエラー → <code>ATD</code> の最初の応答が <code>OK</code> でない → <code>ATH</code> より前の切断の通知(<code>+SKCCSI</code> 状態 6 / <code>+SKCPI</code> 段階 1)→ <code>ATH</code> より前の <code>NO CARRIER</code> など → 独自通知はあるのに回線割当(段階 4)まで進まない、のどれかなら失敗です。ただし、経過通知(呼出音)まで進んだあと理由 16・18・19 で切れたものは、呼は成立していたので成功とします。</li>
+<li><code>ATH</code> のあとに来る切断の通知(理由 16 など)は、こちらが切ったものなので判定に使いません。</li>
+<li>独自通知を出さない機器では、これまでどおり <code>ATD</code> の応答(<code>OK</code> なら成功)で判定します。</li>
+<li>切断の通知より後に送った通話中の <code>AT+CSQ</code> は、通話中の値に数えません(切れたあとは送信していないため)。</li>
+<li>通話中の <code>AT+CSQ</code> が <code>ERROR</code> を返しても、発信の成否には影響しません。</li>
+<li>通知の意味は公開資料がなく、実機の記録からの推定です(<a href="#doc-at-command-table">at-command-table.md</a> の「IsatPhone 2 の独自通知」)。</li>
 <li>送信レベルは AT コマンドでは取れないので、記録するのは受信レベル(rssi)と BER です。</li>
 <li>通話中の値の平均・最小(rssi)、最大(BER)は、<code>99</code>(不明)を除いて計算します。</li>
 <li>同じ分に 2 度は発信しません。発信の直後には、いつもの取得(<code>AT+CSQ</code>・<code>AT+CREG?</code>)を 1 回行います。</li>
 </ul>
 <h3 id="architecture-受信グラフは横スクロールで過去を見る">受信グラフは横スクロールで過去を見る</h3>
 <ul>
-<li>受信グラフには <code>$HistoryHours</code>(既定 24 時間)分の点を持ちます。点の数は「時間 × 3600 ÷ 取得周期 + 1」(3 分周期・24 時間なら 481 点、上限 3000 点)。旧版の <code>$HistoryMax</code> は使いません。</li>
+<li>受信グラフ(監視用)には <code>$HistoryHours</code>(既定 72 時間 = 3 日)分の点を持ちます。点の数は「時間 × 3600 ÷ 取得周期 + 1」(3 分周期・3 日なら 1441 点、上限 3000 点)。旧版の <code>$HistoryMax</code> は使いません。</li>
 <li>起動時は、先月と今月の CSV から <code>$HistoryHours</code> 時間以内の行を読んで復元します(月をまたいでも途切れません)。</li>
-<li>画面では、グラフの横幅を「点の数 × 10px」にして横スクロールで見せます。Chart.js の時間軸(日付ライブラリが必要)は使わず、横軸は取得した順に並べ、ラベルを「時刻」と「月/日」の 2 段にしています。Monitor が止まっていた時間は詰めて描かれるので、ラベルの日時で確かめてください。</li>
+<li>画面では、グラフの横幅を「点の数 × 6px」(3 日で約 8,600px)にして横スクロールで見せます。Chart.js の時間軸(日付ライブラリが必要)は使わず、横軸は取得した順に並べ、ラベルを「時刻」と「月/日」の 2 段にしています。Monitor が止まっていた時間は詰めて描かれるので、ラベルの日時で確かめてください。</li>
 <li>縦軸の目盛りがスクロールで見えなくならないよう、描画のたびにグラフの左端(縦軸の目盛りの部分)を別の canvas に写し、左に重ねて固定しています。</li>
 <li>更新のたびに右端に合わせるのは、右端(最新)を見ているときだけです。過去を見ている途中は位置を動かしません。</li>
+</ul>
+<h3 id="architecture-監視と評価を分ける-評価トレンド">監視と評価を分ける (評価トレンド)</h3>
+<ul>
+<li>監視は 3 分ごとの全点を 3 日分。評価は 1 週間単位なので、全点を描くと点が多すぎて重く、canvas の幅の上限にも近づきます。そこで評価用には、Monitor が <code>$TrendDays</code>(既定 7 日)分の受信ログを <strong>15 分ごとにまとめた</strong> <code>trend.js</code> を別に作ります(平均・最小・最大・BER の最大・取得失敗の数・圏外の数)。1 週間で 673 区間ほどなので、画面幅に収まり、軽く動きます。</li>
+<li><code>trend.js</code> には、同じ期間の発信試験の結果と変化のコメントも入れます。作り直すのは 10 分ごと・発信試験のあと・コメントを取り込んだあとです。<code>data.js</code> は軽いまま(3 秒ごとの読み直し)、<code>trend.js</code> は画面が 1 分ごとに読み直します。</li>
+<li>まとめた区間は、データがなくても時間どおりに並べます。Monitor が止まっていた時間は空白になるので、止まっていたことが見てわかります(受信グラフは取った順に並べるので、止まっていた時間は詰めて描かれます)。</li>
+<li>月をまたぐ期間は、該当する月の CSV をすべて読みます。</li>
+</ul>
+<h3 id="architecture-変化のコメント">変化のコメント</h3>
+<ul>
+<li><code>logs\events.csv</code>(UTF-8 BOM 付き)に <code>Timestamp,Text,Id</code> の形で残します。Id は画面から足したときの保存日時で、画面が「反映済み」を確かめるのに使います。メモ帳で足した行は Id が空でもかまいません。</li>
+<li>画面の「コメントを追加」は、タイムテーブルと同じく <code>csqwatch_event.json</code> をダウンロードとして保存し、Monitor が 5 秒ごとに受け取り先を探して取り込みます。内容の改行は空白に、<code>,</code> は <code>、</code> に置き換え、200 文字までにします。取り込んだファイルは <code>logs\calltable_history\</code> へ移します。</li>
+<li>コメントは評価トレンドと受信グラフの両方に縦線で描きます(Chart.js のプラグインで、グラフを描いたあとに線とラベルを重ねる)。受信グラフでは、コメントの時刻以前でいちばん近い点の位置に引きます。</li>
 </ul>
 <h3 id="architecture-更新停止の検知">更新停止の検知</h3>
 <p><code>data.js</code> に取得周期(<code>intervalSec</code>)を含め、画面側で最終更新時刻と比べます。周期の 2 倍 + 10 秒を超えると <strong>STALE</strong> 表示にします。
@@ -569,10 +627,10 @@ URL にクエリ(<code>?t=…</code>)を付けてキャッシュを避けてい�
 </ul>
 <h2 id="architecture-発信試験の-csv">発信試験の CSV</h2>
 <p><code>logs/call_YYYYMM.csv</code>(UTF-8 BOM 付き)。1 回の発信試験で 1 行です。</p>
-<pre><code>Timestamp,Slot,Time,Number,Result,Code,RssiBefore,BerBefore,RssiDuringAvg,RssiDuringMin,BerDuringMax,DuringSamples,RssiAfter,BerAfter,DurationSec
-2026-10-26 09:01:00,9,09:01,+819012345678,成功,OK,37,0,26.7,25,3,3,37,0,20
-2026-10-26 11:01:00,11,11:01,+819012345678,失敗,NO CARRIER (呼出中に終了),33,0,24,22,7,2,32,0,20
-2026-10-26 07:01:00,7,07:01,+819012345678,失敗,BUSY,38,0,,,,0,38,0,20</code></pre>
+<pre><code>Timestamp,Slot,Time,Number,Result,Code,RssiBefore,BerBefore,RssiDuringAvg,RssiDuringMin,BerDuringMax,DuringSamples,RssiAfter,BerAfter,DurationSec,Stage,Cause,CauseText,GpsPos,CievMin
+2026-10-28 07:11:00,7,07:11,+819012345678,成功,OK / 到達: 経過通知,37,0,31.3,29,5,3,38,0,20,経過通知,,,1,4
+2026-10-28 08:01:00,8,08:01,+819012345678,失敗,切断 理由31 (正常、その他) / 到達: 発信,37,0,,,,0,37,0,20,発信,31,正常、その他,0→1,3
+2026-10-28 10:01:00,10,10:01,+819012345678,失敗,BUSY,38,0,,,,0,38,0,20,,,,,</code></pre>
 <table>
 <thead><tr><th>列</th><th>内容</th></tr></thead>
 <tbody>
@@ -583,8 +641,13 @@ URL にクエリ(<code>?t=…</code>)を付けてキャッシュを避けてい�
 <tr><td><code>DuringSamples</code></td><td>通話中に値が取れた回数</td></tr>
 <tr><td><code>RssiAfter</code> / <code>BerAfter</code></td><td>切断直後の <code>AT+CSQ</code></td></tr>
 <tr><td><code>DurationSec</code></td><td>呼出秒数</td></tr>
+<tr><td><code>Stage</code></td><td>到達段階(発信 / 回線割当 / 呼の処理中 / 経過通知 / 相手を呼出 / 応答)</td></tr>
+<tr><td><code>Cause</code> / <code>CauseText</code></td><td><code>ATH</code> より前に網から切断されたときの理由番号(ITU-T Q.850)と意味</td></tr>
+<tr><td><code>GpsPos</code></td><td>発信中の <code>+SKGPSPOSI</code> の値の変化(例 <code>0→1</code>)</td></tr>
+<tr><td><code>CievMin</code></td><td>発信中の <code>+CIEV: 2</code>(アンテナ表示)の最小</td></tr>
 </tbody>
 </table>
+<p><code>Stage</code> 以降の 5 列は 2026-10-28 に足しました。それより前の行は空欄です。古い見出しのファイルに書き足すときは、見出しの行だけを新しいものに置き換えます。</p>
 <p>値が取れなかった欄は空欄です。起動時には、今日の分を読み戻して画面の「今日の結果」に出します。</p>
 <h2 id="architecture-起動時に作られるもの">起動時に作られるもの</h2>
 <table>
@@ -596,7 +659,9 @@ URL にクエリ(<code>?t=…</code>)を付けてキャッシュを避けてい�
 <tr><td><code>test_YYYYMMDD.log</code></td><td><code>app\logs\</code></td><td>試験ログ(日別)</td></tr>
 <tr><td><code>call_YYYYMM.csv</code></td><td><code>app\logs\</code></td><td>発信試験の結果(月別。初めて発信したとき)</td></tr>
 <tr><td><code>CallTable.json</code></td><td><code>app\</code></td><td>発信試験のタイムテーブル(初回は既定の内容で作る)</td></tr>
-<tr><td><code>calltable_history\</code></td><td><code>app\logs\</code></td><td>取り込んだタイムテーブルのファイル</td></tr>
+<tr><td><code>calltable_history\</code></td><td><code>app\logs\</code></td><td>取り込んだタイムテーブル・コメントのファイル</td></tr>
+<tr><td><code>trend.js</code></td><td><code>app\</code></td><td>評価トレンドのデータ(10 分ごと)</td></tr>
+<tr><td><code>events.csv</code></td><td><code>app\logs\</code></td><td>変化のコメント(初めて画面から足したとき)</td></tr>
 <tr><td><code>monitor_running.txt</code></td><td><code>app\logs\</code></td><td>動いている Monitor の情報</td></tr>
 <tr><td><code>profile_&lt;ブラウザ名&gt;\</code></td><td><code>app\</code></td><td>監視画面用のブラウザプロファイル</td></tr>
 </tbody>
@@ -657,12 +722,23 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 <tr><td><code>Import-CallTable</code></td><td>なし</td><td>なし</td><td>起動時に <code>CallTable.json</code> を読む。なければ初期のものを作る。壊れていれば上書きせず、発信試験を止めておく</td><td>起動時</td></tr>
 <tr><td><code>Receive-CallTable</code></td><td>なし</td><td>なし</td><td>受け取り先と <code>app\</code> から <code>csqwatch_calltable*.json</code> を探し、最も新しいものを確かめて取り込む。取り込んだファイルは <code>logs\calltable_history\</code> へ移す</td><td>メインループ(5 秒ごと)</td></tr>
 <tr><td><code>Get-CsqValue</code></td><td><code>Res</code>(応答)</td><td><code>@{ r; b }</code> または <code>$null</code></td><td>応答から最初の <code>+CSQ: &lt;rssi&gt;,&lt;ber&gt;</code> を取り出す</td><td><code>Invoke-TestCall</code>、<code>Get-CallJudgement</code></td></tr>
-<tr><td><code>Get-CallJudgement</code></td><td><code>Res</code>(発信の応答)</td><td><code>@{ result; code; samples }</code></td><td>区切り行(<code>--- during</code> / <code>--- after</code>)で応答を分け、<code>ATD</code> の応答から成否を、通話中の部分から <code>AT+CSQ</code> の値の並びを取り出す</td><td><code>Invoke-TestCall</code></td></tr>
+<tr><td><code>Get-CallJudgement</code></td><td><code>Res</code>(発信の応答)</td><td><code>@{ result; code; samples; stage; cause; causeText; gps; ciev; notify }</code></td><td>区切り行(<code>--- during</code> / <code>--- after</code>)で応答を分け、<code>ATH</code> より前の部分から、<code>ATD</code> の応答・独自通知(<code>+SKCPI</code> の段階、<code>+SKCCSI</code> の切断と理由、<code>+SKGPSPOSI</code>、<code>+CIEV: 2</code>)を読んで成否を決める。通話中の <code>AT+CSQ</code> の値は、切断の通知より前のものだけを取り出す。段階の名前は <code>$CallStageName</code>、理由番号の意味は <code>$Q850Text</code></td><td><code>Invoke-TestCall</code></td></tr>
 <tr><td><code>Get-CallCsvPath</code></td><td><code>d</code>(日時)</td><td>パス</td><td>その月の発信試験の CSV <code>logs\call_YYYYMM.csv</code></td><td><code>Add-CallCsvLine</code>、<code>Import-CallResults</code></td></tr>
-<tr><td><code>Add-CallCsvLine</code></td><td><code>d</code>、<code>line</code></td><td>なし</td><td>発信試験の CSV に 1 行追記する(なければ見出し付きで作る)</td><td><code>Invoke-TestCall</code></td></tr>
+<tr><td><code>Add-CallCsvLine</code></td><td><code>d</code>、<code>line</code></td><td>なし</td><td>発信試験の CSV に 1 行追記する(なければ見出し付きで作る。列を足す前の見出しなら、見出しの行だけ置き換える)</td><td><code>Invoke-TestCall</code></td></tr>
 <tr><td><code>Get-Cell</code></td><td><code>v</code></td><td>文字列</td><td>値がなければ空欄、あればそのままの文字列(CSV と画面で共通)</td><td><code>Invoke-TestCall</code></td></tr>
 <tr><td><code>Import-CallResults</code></td><td>なし</td><td>なし</td><td>起動時に、今日の発信試験の結果を CSV から読み戻す</td><td>起動時</td></tr>
 <tr><td><code>Invoke-TestCall</code></td><td><code>Slot</code>(タイムテーブルの行)、<code>now</code>(日時)</td><td>なし</td><td>発信試験 1 回分。直前の <code>AT+CSQ</code> → <code>ATD&lt;番号&gt;;</code>(通話中も <code>AT+CSQ</code>)→ <code>ATH</code> → 直後の <code>AT+CSQ</code>。判定して、発信試験の CSV・取得結果の CSV(印)・試験ログ・<code>data.js</code> に反映する</td><td>メインループ</td></tr>
+</tbody>
+</table>
+<h3 id="functions-monitorps1-の評価トレンドとコメントの関数">Monitor.ps1 の評価トレンドとコメントの関数</h3>
+<table>
+<thead><tr><th>関数</th><th>引数</th><th>戻り値</th><th>役割</th><th>呼び出し元</th></tr></thead>
+<tbody>
+<tr><td><code>Get-TrendMonths</code></td><td><code>From</code>、<code>To</code></td><td>月の一覧</td><td>期間にかかる月を並べる(月をまたいで CSV を読むため)</td><td><code>Read-TrendLines</code></td></tr>
+<tr><td><code>Read-TrendLines</code></td><td><code>Prefix</code>、<code>From</code>、<code>To</code>、<code>OldPrefix</code></td><td>行の並び</td><td>期間内の CSV の行を集める(<code>csq_</code> / <code>call_</code>。受信ログは旧名 <code>isat_</code> も読む)</td><td><code>Write-Trend</code></td></tr>
+<tr><td><code>Read-Events</code></td><td><code>From</code></td><td>コメントの並び</td><td><code>logs\events.csv</code> から期間内のコメントを読む(<code>日時,内容,Id</code>。Id は空でもよい)</td><td><code>Write-Trend</code></td></tr>
+<tr><td><code>Write-Trend</code></td><td>なし</td><td>なし</td><td><code>$TrendDays</code> 日分の受信ログを 15 分ごとにまとめ(平均・最小・最大・BER の最大・取得失敗・圏外)、発信試験の結果とコメントを添えて <code>trend.js</code> に書き出す</td><td>起動時、メインループ(10 分ごと)、発信試験のあと、<code>Receive-Events</code></td></tr>
+<tr><td><code>Receive-Events</code></td><td>なし</td><td>なし</td><td>受け取り先と <code>app\</code> から <code>csqwatch_event*.json</code> を探し、確かめて <code>events.csv</code> に追記する。取り込んだファイルは <code>logs\calltable_history\</code> へ移す</td><td>メインループ(5 秒ごと)</td></tr>
 </tbody>
 </table>
 <h3 id="functions-monitorps1-の関数以外の処理上から順に">Monitor.ps1 の関数以外の処理(上から順に)</h3>
@@ -684,7 +760,7 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 <thead><tr><th>関数</th><th>引数</th><th>戻り値</th><th>役割</th><th>呼び出し元</th></tr></thead>
 <tbody>
 <tr><td><code>Invoke-At</code></td><td><code>Cmd</code>、<code>Wait</code>(秒、既定 3)、<code>After</code>・<code>During</code>・<code>DuringEvery</code>(省略可。<code>During</code> は <code>After</code> があるときだけ渡す)</td><td>応答の文字列</td><td><code>AtIo.exe &lt;Port&gt; &lt;Baud&gt; &lt;Cmd&gt; &lt;Wait&gt; [After] [During] [DuringEvery]</code> を呼び、標準出力と標準エラー出力をまとめて返す。<code>-Mock</code> のときは <code>Get-MockResponse</code> を返す。呼び出しに失敗したら <code>IO Error: …</code> を返す</td><td><code>Invoke-AtLog</code>、<code>Probe.ps1</code></td></tr>
-<tr><td><code>Get-MockResponse</code></td><td><code>Cmd</code>、<code>Wait</code>、<code>After</code>、<code>During</code>、<code>DuringEvery</code></td><td>応答の文字列</td><td><code>-Mock</code> 用の疑似応答。<code>ATD</code> には <code>AtIo.exe</code> と同じ区切り行つきの応答を返す(8 割成功、残りは呼出中の <code>NO CARRIER</code>・<code>BUSY</code>・<code>+CME ERROR</code>。通話中は rssi が 3〜10 下がる)。<code>AT+CSQ</code> は rssi 20〜50(IsatPhone 2 の実測付近)でゆらぐ値、<code>AT+CREG?</code> は rssi が 25 未満なら探索中。ほかに <code>AT+COPS?</code>・<code>AT+CBC</code>(実機の IsatPhone 2 では使用禁止)・<code>AT</code>・<code>ATH</code>。それ以外は <code>ERROR</code></td><td><code>Invoke-At</code></td></tr>
+<tr><td><code>Get-MockResponse</code></td><td><code>Cmd</code>、<code>Wait</code>、<code>After</code>、<code>During</code>、<code>DuringEvery</code></td><td>応答の文字列</td><td><code>-Mock</code> 用の疑似応答。<code>ATD</code> には <code>AtIo.exe</code> と同じ区切り行と、IsatPhone 2 の独自通知を実機の記録に似せて返す(7 割成功。1 割は途中で GPS 状態が 0 になり網から理由 31 で切断、<code>ATD</code> は <code>OK</code>。残りは呼出中の <code>NO CARRIER</code>・<code>BUSY</code>・<code>+CME ERROR</code>。通話中は rssi が 3〜10 下がる)。<code>AT+CSQ</code> は rssi 20〜50(IsatPhone 2 の実測付近)でゆらぐ値、<code>AT+CREG?</code> は rssi が 25 未満なら探索中。ほかに <code>AT+COPS?</code>・<code>AT+CBC</code>(実機の IsatPhone 2 では使用禁止)・<code>AT</code>・<code>ATH</code>。それ以外は <code>ERROR</code></td><td><code>Invoke-At</code></td></tr>
 </tbody>
 </table>
 <h2 id="functions-browserps1監視画面を開く">Browser.ps1(監視画面を開く)</h2>
@@ -730,11 +806,18 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 <tr><td><code>md(s)</code> / <code>hm(s)</code></td><td>日時の文字列から「月/日」・「時:分」を取り出す(横軸のラベル用)</td></tr>
 <tr><td><code>loadData()</code></td><td><code>&lt;script src=&quot;data.js?t=…&quot;&gt;</code> を差し替えて読み込み、読めたら <code>render</code> を呼ぶ。読めなければ <code>NO DATA</code></td></tr>
 <tr><td><code>render(d)</code></td><td><code>window.CSQ_DATA</code> からカード・見出し(機器名)・グラフ・発信試験の欄を更新する。取得失敗は <code>--</code> と赤の <code>取得失敗</code>、端末の 99 は <code>圏外 (99)</code>。グラフの縦軸は <code>rssiMax</code> に合わせる。最終更新が周期の 2 倍 + 10 秒より古ければ <code>STALE</code></td></tr>
-<tr><td><code>renderCall(c)</code></td><td>発信試験の欄を描く。有効/停止・ON の数・今日の成功数、取り込みの状態(「反映済み」・取り込めなかった理由)、24 行の表(今日の結果・応答・rssi と BER の直前/通話中/直後・差)</td></tr>
+<tr><td><code>renderCall(c)</code></td><td>発信試験の欄を描く。有効/停止・ON の数・今日の成功数、取り込みの状態(「反映済み」・取り込めなかった理由)、24 行の表(今日の結果・応答と切断理由と到達段階・GPS・表示器の最小・rssi と BER の直前/通話中/直後・差)</td></tr>
 <tr><td><code>openEditor()</code> / <code>closeEditor()</code></td><td>タイムテーブルの編集欄を開く・閉じる(表示側の表と切り替える)</td></tr>
 <tr><td><code>editorRows()</code></td><td>編集欄の 24 行の入力欄(ON・時刻・番号)をまとめて返す</td></tr>
 <tr><td><code>saveEditor()</code></td><td>編集欄の内容を確かめ(Monitor と同じ確認)、確認の画面を出してから <code>csqwatch_calltable.json</code> をダウンロードとして保存する。保存した <code>savedAt</code> を覚えて、取り込まれたかを見る</td></tr>
 <tr><td><code>initCall()</code></td><td>発信試験の欄のボタンに処理を割り当てる</td></tr>
+<tr><td><code>eventLines</code>(Chart.js のプラグイン)</td><td>グラフを描いたあとに、変化のコメントを黄色の縦線とラベルで重ねる(<code>chart.$events</code>)。受信グラフと評価トレンドの両方で使う</td></tr>
+<tr><td><code>setLiveEvents()</code></td><td>受信グラフの各点の時刻と照らして、コメントの縦線の位置を決める</td></tr>
+<tr><td><code>initTrend()</code></td><td>評価トレンドのグラフを作り、期間の切り替え・コメントの追加のボタンを割り当て、<code>loadTrend</code> を 1 分ごとに呼ぶ</td></tr>
+<tr><td><code>loadTrend()</code></td><td><code>&lt;script src=&quot;trend.js?t=…&quot;&gt;</code> を差し替えて読み込み、<code>renderTrend</code> を呼ぶ</td></tr>
+<tr><td><code>renderTrend(d)</code></td><td>選んだ期間を切り出し、CSQ の平均・最小〜最大の帯・BER の最大・発信試験の点・コメントの縦線を描く。期間の要約、時間帯別の成功率、コメントの一覧も出す</td></tr>
+<tr><td><code>saveEvent()</code></td><td>コメントの日時と内容を確かめ、<code>csqwatch_event.json</code> をダウンロードとして保存する。取り込まれたかを <code>trend.js</code> のコメントの Id で確かめる</td></tr>
+<tr><td><code>toMin(s)</code></td><td>日時の文字列を分に直す(位置の計算用)</td></tr>
 <tr><td><code>esc</code> / <code>pad2</code> / <code>nowText</code> / <code>hhmm</code> / <code>setCallMsg</code></td><td>文字の置き換え・ゼロ埋め・現在日時・時刻だけ取り出す・欄の上のメッセージ</td></tr>
 </tbody>
 </table>
@@ -776,7 +859,7 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 <section class="doc" id="doc-at-commands">
 <p class="back"><a href="#toc">▲ 目次へ</a>　(元原稿: docs/at-commands.md)</p>
 <h1 id="at-commands-at-コマンドの対応範囲">AT コマンドの対応範囲</h1>
-<p>Author: yuichi(更新 2026-10-21)</p>
+<p>Author: yuichi(更新 2026-10-28)</p>
 <p>コマンドごとの意味・応答の形・確認結果は、<a href="#doc-at-command-table">at-command-table.md</a> にまとめてあります。</p>
 <h2 id="at-commands-現状でわかっていること">現状でわかっていること</h2>
 <ul>
@@ -792,6 +875,8 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 <li><strong><code>AT+CBC</code> は使用禁止です。</strong> 応答がないうえ、その後しばらく(Probe では約 30 秒)ほかのコマンドにも応答しなくなります。</li>
 <li><code>AT+CLAC</code>(対応コマンドの一覧)は使えません。パケット系(<code>AT+CGREG?</code>・<code>AT+CGATT?</code>)も未対応です。</li>
 <li><code>AT+CLCC</code> と GPS 系は、<code>AT+CBC</code> の影響で結果が取れていないので、<code>AT+CBC</code> を外して調べ直す必要があります。</li>
+<li>発信中は、独自の通知(<code>+SKCPI</code>・<code>+SKCCSI</code>・<code>+SKGPSPOSI</code>・<code>+CIEV</code>)を自分から送ってきます。失敗しても <code>ATD</code> は <code>OK</code> を返すので、成否はこの通知で判定します(詳しくは <a href="#doc-at-command-table">at-command-table.md</a> の「IsatPhone 2 の独自通知」)。</li>
+<li>発信試験の実行中に送った <code>AT+CSQ</code>(<code>--- during</code>)にも応答が返ることを確認しました(2026-10-28、値 52〜53)。ただし、その回が通話の確立中だったか、網から切断されたあとだったかは、まだ確かめていません。</li>
 </ul>
 <h2 id="at-commands-実機で調べる--probe">実機で調べる — Probe</h2>
 <pre><code>Probe.bat</code></pre>
@@ -834,7 +919,7 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 <section class="doc" id="doc-at-command-table">
 <p class="back"><a href="#toc">▲ 目次へ</a>　(元原稿: docs/at-command-table.md)</p>
 <h1 id="at-command-table-at-コマンド表">AT コマンド表</h1>
-<p>Author: yuichi(更新 2026-10-26)</p>
+<p>Author: yuichi(更新 2026-10-28)</p>
 <p>このツール(<code>Monitor</code> / <code>Probe</code>)に関係する AT コマンドの一覧です。</p>
 <ul>
 <li>「意味」「応答の形」は、標準仕様(ITU-T V.250、3GPP TS 27.007)に基づく<strong>一般的な内容</strong>です。</li>
@@ -995,12 +1080,55 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 <thead><tr><th>時点</th><th>コマンド</th><th>使い方</th></tr></thead>
 <tbody>
 <tr><td>発信直前</td><td><code>AT+CSQ</code></td><td>受信レベル・BER</td></tr>
-<tr><td>発信</td><td><code>ATD&lt;番号&gt;;</code></td><td>応答の最初の終端行で成否を判定(<code>OK</code> なら成功)</td></tr>
+<tr><td>発信</td><td><code>ATD&lt;番号&gt;;</code></td><td>最初の応答に加え、通話中の独自通知(下記)で成否・切断理由を判定。IsatPhone 2 は失敗しても <code>OK</code> を返す</td></tr>
 <tr><td>通話中</td><td><code>AT+CSQ</code></td><td><code>ATD</code> の <code>OK</code> を受けてから数秒ごと。<strong>通話中に AT コマンドを受け付けるかは機器による</strong>(IsatPhone 2 は未確認)</td></tr>
 <tr><td>切断</td><td><code>ATH</code></td><td>呼出秒数が過ぎたら送る</td></tr>
 <tr><td>切断直後</td><td><code>AT+CSQ</code></td><td>受信レベル・BER</td></tr>
 </tbody>
 </table>
+<h3 id="at-command-table-isatphone-2-の独自通知発信中に端末が自分から送ってくる">IsatPhone 2 の独自通知(発信中に端末が自分から送ってくる)</h3>
+<p>2026-10-28 に Tera Term で <code>ATD+81…;</code> を送って記録しました。<strong>公開資料はなく、意味は他社モジュールの同じ形の通知からの推定</strong>です。</p>
+<table>
+<thead><tr><th>通知</th><th>推定の意味</th></tr></thead>
+<tbody>
+<tr><td><code>+SKCCSI: &lt;呼&gt;,&lt;向き&gt;,&lt;状態&gt;,&lt;種別&gt;,&lt;多者&gt;,&lt;理由&gt;,&quot;&lt;番号&gt;&quot;,&lt;型&gt;</code></td><td>通話の状態(<code>+CLCC</code> と同じ並びに、理由の欄が加わった形)。状態 <code>2</code>=発信中、<code>6</code>=切断。切断のときの理由は ITU-T Q.850 の理由番号と思われる</td></tr>
+<tr><td><code>+SKCPI: &lt;呼&gt;,&lt;段階&gt;,&lt;音&gt;,&lt;回線&gt;[,…]</code></td><td>呼の進み具合(他社の <code>+CPI</code> 相当)。段階 <code>0</code>=発信、<code>4</code>=回線割当、<code>3</code>=呼の処理中、<code>5</code>=経過通知、<code>2</code>=相手を呼出、<code>6</code>=応答、<code>1</code>=切断。<code>&lt;音&gt;</code>=1 は網が呼出音やアナウンスを流している、<code>&lt;回線&gt;</code>=1 は通話の回線が割り当てられている。<strong>段階 <code>5</code> で <code>&lt;音&gt;</code>=1 は、相手が鳴っている(確認済み)</strong></td></tr>
+<tr><td><code>+SKGPSPOSI: &lt;0/1&gt;</code></td><td>GPS の位置(1=あり、0=なし と思われる)</td></tr>
+<tr><td><code>+CIEV: 2,&lt;0〜5&gt;</code></td><td>表示器の変化。2 番はアンテナ表示と思われる(<code>AT+CIND=?</code> で確認予定)</td></tr>
+<tr><td><code>+SKAUDDEV: 2,2</code></td><td>音声の機器の選択?</td></tr>
+<tr><td><code>+AUDLSTI: &lt;0/1&gt;</code></td><td>音声経路の開始(1)・終了(0)?</td></tr>
+</tbody>
+</table>
+<p><strong>記録 1(成功。相手の呼出音が鳴っていた。最後はこちらの <code>ATH</code> で切断)</strong></p>
+<pre><code>OK
++SKCCSI: 1,0,2,0,0,,&quot;+81…&quot;,145        発信中
++SKCPI: 1,0,0,0                        段階 0 発信
++SKAUDDEV: 2,2
++SKGPSPOSI: 1                          GPS あり
++AUDLSTI: 1
++SKCPI: 1,4,0,1                        段階 4 回線割当 (回線=1)
++CIEV: 2,4 / +CIEV: 2,5 …              通話中のアンテナ表示
++SKCPI: 1,3,0,1                        段階 3 呼の処理中
++SKCPI: 1,5,0,1,2,1                    段階 5 経過通知
++SKCPI: 1,5,1,1,2,8                    段階 5 経過通知 (音=1: 相手が鳴っている)
++AUDLSTI: 0
++SKCCSI: 1,0,6,0,0,16,&quot;+81…&quot;,145      切断 理由 16 (通常の切断)
++SKCPI: 1,1,0,0                        段階 1 切断
+OK                                     ATH の応答</code></pre>
+<p><strong>記録 2(失敗。<code>ATD</code> は <code>OK</code>、<code>NO CARRIER</code> は出ない)</strong></p>
+<pre><code>OK
++SKCCSI: 1,0,2,0,0,,&quot;+81…&quot;,145        発信中
++SKCPI: 1,0,0,0                        段階 0 発信
++SKAUDDEV: 2,2
++CIEV: 2,4
++SKGPSPOSI: 0                          GPS の位置なし
++SKCCSI: 1,0,6,0,0,31,&quot;+81…&quot;,145      切断 理由 31 (正常、その他)
++SKCPI: 1,1,0,0                        段階 1 切断 (回線割当まで進まず)
++CIEV: 2,3 / 2,4 / 2,5
++SKGPSPOSI: 1                          GPS の位置が戻る</code></pre>
+<p>失敗のときは、回線割当(段階 4)まで進まず、こちらの <code>ATH</code> より前に網から切断されています。このツールの発信試験は、これらの通知を読んで成否・切断理由・到達段階・GPS の変化・アンテナ表示の最小を記録します。</p>
+<p>記録 1 では相手の呼出音が鳴っていましたが、<code>ALERT</code>(段階 2)は出ず、段階 5・<code>&lt;音&gt;</code>=1 が出ていました。衛星から一般の電話網にかけると、相手の鳴動は網が流す呼出音として伝わるためと考えられます。このツールは、段階 5・<code>&lt;音&gt;</code>=1 を「相手を呼出(呼出音)」として扱います。</p>
+<p>まだ確かめたいこと:<code>AT+CIND=?</code>(<code>+CIEV</code> の番号の意味)、話中・応答なし・番号違い・相手が応答したときの通知の並びと理由番号。</p>
 <h2 id="at-command-table-7-使い方の例">7. 使い方の例</h2>
 <p><code>AtIo.exe</code> は、コマンドを引数で渡して 1 回だけ送ります。</p>
 <pre><code>AtIo.exe COM3 115200 &quot;AT+CSQ&quot; 3
@@ -1047,7 +1175,7 @@ git push -u origin main</code></pre>
 <li>push の前に、<code>git status</code> と <code>git ls-files</code> で次のものが<strong>含まれていない</strong>ことを確認します(<code>.gitignore</code> で除外済みです)。
 <ul>
 <li><code>Config.ps1</code>(COM 番号・発信先)、<code>CallTable.json</code>(発信試験のタイムテーブル。着信番号が入る)</li>
-<li><code>logs\</code>(CSV・試験ログ・<code>monitor_running.txt</code>)、<code>data.js</code>、<code>probe_日時.txt</code>(実機の値や機器の情報が入ります)</li>
+<li><code>logs\</code>(CSV・試験ログ・<code>events.csv</code>・<code>monitor_running.txt</code>)、<code>data.js</code>、<code>trend.js</code>、<code>probe_日時.txt</code>(実機の値や機器の情報が入ります)</li>
 <li><code>profile_&lt;ブラウザ名&gt;\</code>(監視画面用のブラウザプロファイル)</li>
 <li><code>AtIo.exe</code></li>
 </ul></li>

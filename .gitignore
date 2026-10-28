@@ -5,6 +5,8 @@
 # 実行時に生成されるもの
 app/data.js
 app/data.js.tmp
+app/trend.js
+app/trend.js.tmp
 app/logs/
 app/probe_[0-9]*.txt
 
