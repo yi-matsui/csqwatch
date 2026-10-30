@@ -12,7 +12,8 @@ Monitor.bat ──► Monitor.ps1 ──┬─ . Config.ps1      (設定)
                               └─ . Browser.ps1     (Open-Dashboard → ブラウザ)
 Probe.bat   ──► Probe.ps1   ──┬─ . Config.ps1
                               └─ . Common.ps1
-index.html  ──► data.js (Monitor.ps1 が書き出す)
+Merge.bat   ──► Merge.ps1   ──── . Config.ps1      ($LogDir だけ使う)
+index.html  ──► data.js・trend.js (Monitor.ps1 が書き出す)
 build.bat   ──► AtIo.cs → AtIo.exe
 tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.md → app\manual.html
 ```
@@ -40,9 +41,10 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 |---|---|---|---|---|
 | `Get-CallInbox` | なし | パス | 画面で保存したタイムテーブルを探すフォルダ。`$CallTableInbox`、なければダウンロードフォルダ(`shell:Downloads`)、それも取れなければ `%USERPROFILE%\Downloads` | 起動時 |
 | `New-DefaultCallTable` | なし | タイムテーブル | 初期のタイムテーブル(各時 01 分・番号 `$TestNumber`・すべて OFF)。旧版の `$CallTimes` の時刻の行は ON にして有効にする | `Import-CallTable` |
-| `ConvertTo-CallTable` | `Obj`(JSON から読んだもの) | タイムテーブル | 24 行・時刻の形式・ON の行の時刻の重なり・番号の形式・呼出秒数・`$CallNumberAllow` を確かめて、決まった形にする。おかしければ理由つきの例外 | `Import-CallTable`、`Receive-CallTable` |
+| `ConvertTo-CallTable` | `Obj`(JSON から読んだもの) | タイムテーブル | 24 行・時刻の形式・ON の行の時刻の重なり・番号の形式・通話時間・回数・間隔・ON の時刻どうしの間隔(1 つの試験の長さ以上)・`$CallNumberAllow` を確かめて、決まった形にする。おかしければ理由つきの例外 | `Import-CallTable`、`Receive-CallTable` |
 | `Save-CallTable` | なし | なし | 今のタイムテーブルを `CallTable.json` に書く | `Import-CallTable`、`Receive-CallTable` |
-| `Get-CallTableSummary` | なし | 文字列 | 試験ログ用の要約(有効・ON の数・呼出秒数・時刻) | 各所 |
+| `Get-CallSeqSec` | `Dur`、`Repeat`、`IntervalMin` | 秒 | 1 つの時刻の試験(連続発信)にかかる秒数のめやす(回数 × (通話時間 + 30) + (回数 − 1) × 間隔) | `ConvertTo-CallTable` |
+| `Get-CallTableSummary` | なし | 文字列 | 試験ログ用の要約(有効・ON の数・通話時間・回数・間隔・時刻) | 各所 |
 | `Import-CallTable` | なし | なし | 起動時に `CallTable.json` を読む。なければ初期のものを作る。壊れていれば上書きせず、発信試験を止めておく | 起動時 |
 | `Receive-CallTable` | なし | なし | 受け取り先と `app\` から `csqwatch_calltable*.json` を探し、最も新しいものを確かめて取り込む。取り込んだファイルは `logs\calltable_history\` へ移す | メインループ(5 秒ごと) |
 | `Get-CsqValue` | `Res`(応答) | `@{ r; b }` または `$null` | 応答から最初の `+CSQ: <rssi>,<ber>` を取り出す | `Invoke-TestCall`、`Get-CallJudgement` |
@@ -51,7 +53,7 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 | `Add-CallCsvLine` | `d`、`line` | なし | 発信試験の CSV に 1 行追記する(なければ見出し付きで作る。列を足す前の見出しなら、見出しの行だけ置き換える) | `Invoke-TestCall` |
 | `Get-Cell` | `v` | 文字列 | 値がなければ空欄、あればそのままの文字列(CSV と画面で共通) | `Invoke-TestCall` |
 | `Import-CallResults` | なし | なし | 起動時に、今日の発信試験の結果を CSV から読み戻す | 起動時 |
-| `Invoke-TestCall` | `Slot`(タイムテーブルの行)、`now`(日時) | なし | 発信試験 1 回分。直前の `AT+CSQ` → `ATD<番号>;`(通話中も `AT+CSQ`)→ `ATH` → 直後の `AT+CSQ`。判定して、発信試験の CSV・取得結果の CSV(印)・試験ログ・`data.js` に反映する | メインループ |
+| `Invoke-TestCall` | `Slot`(タイムテーブルの行)、`now`(日時)、`Try`、`Total`(何回目か) | なし | 発信試験 1 回分。直前の `AT+CSQ` → `ATD<番号>;`(通話中も `AT+CSQ`)→ `ATH` → 直後の `AT+CSQ`。判定して、発信試験の CSV・取得結果の CSV(印)・試験ログ・`data.js` に反映する | メインループ |
 
 ### Monitor.ps1 の評価トレンドとコメントの関数
 
@@ -59,9 +61,24 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 |---|---|---|---|---|
 | `Get-TrendMonths` | `From`、`To` | 月の一覧 | 期間にかかる月を並べる(月をまたいで CSV を読むため) | `Read-TrendLines` |
 | `Read-TrendLines` | `Prefix`、`From`、`To`、`OldPrefix` | 行の並び | 期間内の CSV の行を集める(`csq_` / `call_`。受信ログは旧名 `isat_` も読む) | `Write-Trend` |
-| `Read-Events` | `From` | コメントの並び | `logs\events.csv` から期間内のコメントを読む(`日時,内容,Id`。Id は空でもよい) | `Write-Trend` |
+| `ConvertTo-EventTime` | `s`(日時の文字列) | `yyyy-MM-dd HH:mm` か `$null` | コメントの日時をそろえる(`/` 区切り・1 桁の時分・全角数字・秒つきも読む) | `ConvertFrom-EventLine`、`Receive-Events` |
+| `ConvertFrom-EventLine` | `l`(events.csv の 1 行) | `{ t, text, id }` か `$null` | events.csv の 1 行を読む(見出しや読めない行は `$null`) | `Read-Events`、`Receive-Events` |
+| `Read-Events` | `From` | コメントの並び | `logs\events.csv` から期間内のコメントを日時の順に読む | `Write-Trend` |
+| `Watch-EventsCsv` | なし | なし | `events.csv` の更新日時を見て、メモ帳などで直されたらすぐ `Write-Trend` を呼ぶ | メインループ(5 秒ごと) |
 | `Write-Trend` | なし | なし | `$TrendDays` 日分の受信ログを 15 分ごとにまとめ(平均・最小・最大・BER の最大・取得失敗・圏外)、発信試験の結果とコメントを添えて `trend.js` に書き出す | 起動時、メインループ(10 分ごと)、発信試験のあと、`Receive-Events` |
-| `Receive-Events` | なし | なし | 受け取り先と `app\` から `csqwatch_event*.json` を探し、確かめて `events.csv` に追記する。取り込んだファイルは `logs\calltable_history\` へ移す | メインループ(5 秒ごと) |
+| `Receive-Events` | なし | なし | 受け取り先と `app\` から `csqwatch_event*.json` を探し、確かめて `events.csv` に書く。`old`(元の日時と内容)があればその行を置き換え、`del` があれば消す。取り込んだファイルは `logs\calltable_history\` へ移す | メインループ(5 秒ごと) |
+
+### Merge.ps1(過去のデータのまとめ)
+
+| 関数 | 引数 | 戻り値 | 役割 |
+|---|---|---|---|
+| `Read-DataLines` | `Path` | 行の配列 | CSV の中から、数字で始まるデータの行だけを読む(見出し・BOM を除く) |
+| `Format-CallLine` | `l` | 行 | 列の足りない旧版の発信試験の行に空の列を足し、今の列の数にそろえる |
+| `Format-EventLine` | `l` | 行か `$null` | コメントの日時を `yyyy-MM-dd HH:mm` にそろえる |
+| `Get-Key` | `Kind`、`l` | 文字列 | 並べ替えと重複判定の鍵(受信ログ・発信試験は日時 19 文字、コメントは日時 + 内容) |
+| `Add-Plan` | `Target`、`Kind`、`Header`、`Lines`、`From` | なし | まとめる先のファイルごとに、元の行を集める |
+
+関数以外の流れ:保存先を決める(`Config.ps1` の `$LogDir`)→ Monitor が動いていれば止まる → 元のフォルダを選ぶ → ファイルを探して行を月ごとに振り分ける → 保存先と合わせて件数を出す → `Y` で、書き換える前のファイルを `merge_backup\` に残してから書く → `merge_report_日時.txt`。
 
 ### Monitor.ps1 の関数以外の処理(上から順に)
 
@@ -73,7 +90,7 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 | 起動の準備 | `monitor_running.txt` を書く。窓のタイトルを「CsqWatch 稼働中」にする。CPU 優先度を「通常以下」にする |
 | 起動記録 | `START`(PID・PowerShell の版・PC の起動時刻)と設定値を試験ログに残す |
 | 起動時の読み込み | 取得結果の履歴(`Import-History`)、受け取り先(`Get-CallInbox`)、タイムテーブル(`Import-CallTable`)、今日の発信試験の結果(`Import-CallResults`) |
-| メインループ | 1 秒ごとに時刻を確認する。5 秒ごとにタイムテーブルの取り込みを確かめ(`Receive-CallTable`)、発信試験が有効で ON の行の時刻なら発信試験を行い(同じ分には 1 度だけ)、周期ごとに取得する。周期が 10 秒を超えて遅れたら `WARN`(スリープの兆候) |
+| メインループ | 1 秒ごとに時刻を確認する。5 秒ごとにタイムテーブルの取り込みを確かめ(`Receive-CallTable`)、発信試験が有効で ON の行の時刻なら試験を始め(同じ分には 1 度だけ。`$script:CallSeq` に回数・次の時刻を持つ)、次の時刻が来るたびに 1 回ずつ発信する(発信のあいだは取得を続ける)。周期ごとに取得する。周期が 10 秒を超えて遅れたら `WARN`(スリープの兆候) |
 | `finally` | 止めたとき(Ctrl+C を含む)に `STOP` を残し、`monitor_running.txt` を消し、Mutex を解放する |
 
 ## Common.ps1(AT コマンド送信の共通部)
@@ -134,7 +151,9 @@ tools\build_manual.bat ──► Build-Manual.ps1 ──► README.md + docs\*.m
 | `initTrend()` | 評価トレンドのグラフを作り、期間の切り替え・コメントの追加のボタンを割り当て、`loadTrend` を 1 分ごとに呼ぶ |
 | `loadTrend()` | `<script src="trend.js?t=…">` を差し替えて読み込み、`renderTrend` を呼ぶ |
 | `renderTrend(d)` | 選んだ期間を切り出し、CSQ の平均・最小〜最大の帯・BER の最大・発信試験の点・コメントの縦線を描く。期間の要約、時間帯別の成功率、コメントの一覧も出す |
-| `saveEvent()` | コメントの日時と内容を確かめ、`csqwatch_event.json` をダウンロードとして保存する。取り込まれたかを `trend.js` のコメントの Id で確かめる |
+| `openEvent(e)` | コメントの入力欄を開く。`e` が空なら追加(日時は空。「今」ボタンで今の時刻)、一覧の行なら直す・消す |
+| `normTime(s)` | 入力された日時を `YYYY-MM-DD HH:MM` にそろえる(`/` 区切り・1 桁の時分・全角数字も可)。読めなければ空 |
+| `saveEvent(del)` | コメントを確かめ(未来の日時は不可)、`csqwatch_event.json`(`t`・`text`・`id`、直すときは `old`、消すときは `del`)をダウンロードとして保存する。取り込まれたかを `trend.js` で確かめる |
 | `toMin(s)` | 日時の文字列を分に直す(位置の計算用) |
 | `esc` / `pad2` / `nowText` / `hhmm` / `setCallMsg` | 文字の置き換え・ゼロ埋め・現在日時・時刻だけ取り出す・欄の上のメッセージ |
 
@@ -170,5 +189,6 @@ README と `docs/*.md` を 1 冊の `app/manual.html` にします。PowerShell 
 | `Monitor.bat` | `Monitor.ps1` を起動する(引数はそのまま渡す)。終了コード `3`(すでに動いている)のときは `pause` せずに閉じる |
 | `MonitorMock.bat` | `Monitor.ps1 -Mock` を起動する。終了コード `3` の扱いは `Monitor.bat` と同じ |
 | `Probe.bat` | `Probe.ps1` を起動する(引数はそのまま渡す) |
+| `Merge.bat` | `Merge.ps1` を起動する(引数はそのまま渡す) |
 | `build.bat` | Windows 標準の `csc.exe`(64bit を優先)で `AtIo.cs` から `AtIo.exe` を作る |
 | `tools\build_manual.bat` | `Build-Manual.ps1` を起動して説明書 `app\manual.html` を作る |

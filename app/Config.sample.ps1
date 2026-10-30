@@ -18,7 +18,7 @@ $BaudRate = 115200
 $PollSec     = 180     # 実機の取得周期 (秒)
 $MockPollSec = 3       # -Mock のときの取得周期 (秒)
 $HistoryHours = 72     # 受信グラフ (監視用) に残す時間。既定 3 日。48 で 2 日。横スクロールで見る (3 分ごとなら 3 日で 1440 点)
-$TrendDays    = 7      # 評価トレンドで見る日数 (15 分ごとにまとめて表示)
+$TrendDays    = 7      # 評価トレンドで見る日数 (15 分ごとにまとめて表示)。過去のデータを長く見るときは 31 まで
 
 # --- 信号の目盛り ---------------------------------------------
 # AT+CSQ の rssi の最大値。機器の AT+CSQ=? の応答 (例 "(0-55,99)") で確認する。
@@ -28,17 +28,27 @@ $RssiMax = 55
 
 # --- ファイル -------------------------------------------------
 $AtIoExe   = 'AtIo.exe'     # このフォルダ内の IO 専用 EXE
-$LogDir    = 'logs'         # CSV の保存先 (月別: csq_YYYYMM.csv)
+# データ (CSV・試験ログ・events.csv) の保存先。相対ならこのフォルダの下、絶対指定もできる
+#   例: $LogDir = 'D:\CsqWatchData'      例: $LogDir = '\\fileserver\share\CsqWatch\拠点A'
+#   過去のデータを足すときは Merge.bat (Monitor を止めてから。保存先へ重複なしでまとめる)
+$LogDir    = 'logs'
 
 # --- 発信試験 --------------------------------------------------
 # 時刻・着信番号・ON/OFF の 24 個のタイムテーブルは、監視画面の「発信試験」で編集します
 # (保存すると app\CallTable.json になります)。ここの値は、CallTable.json がまだ無いときの初期値です。
 #   $TestNumber   : タイムテーブルの各行の着信番号の初期値
 #   $CallTimes    : 旧版の設定。CallTable.json を初めて作るとき、ここにある時刻の行を ON にする
-#   $CallDuration : 呼出し秒数の初期値 (その後 ATH で切断)
+#   $CallDuration : 通話時間 (秒) の初期値。発信 (ATD) から切断 (ATH) まで。5〜900
+#                   相手が出るまでの呼出の時間も含む。「通話状態で 3 分」なら 180 に呼出分を足す
+#   $CallRepeat   : 1 つの時刻で続けて発信する回数の初期値。1〜10
+#   $CallRepeatIntervalMin : その間隔 (分)。切断してから次の発信まで。1〜60
+#   回数・間隔・通話時間は、画面のタイムテーブルの編集でも変えられます (画面で保存した値が優先)
+#   例: 衛星事業者の接続試験 (3 分の通話を 5 分間隔で 3 回) → 180 / 3 / 5
 $TestNumber   = '+819012345678'
 $CallTimes    = @()
-$CallDuration = 20
+$CallDuration = 180
+$CallRepeat   = 3
+$CallRepeatIntervalMin = 5
 
 # 通話中に AT+CSQ を送る間隔 (秒)。0 にすると通話中は測らない (発信直前と切断直後だけ)。
 $CallDuringEverySec = 5

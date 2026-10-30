@@ -12,6 +12,8 @@
 #   ・社外監視 (VPN) の窓が最優先。Monitor は CPU 優先度「通常以下」で動く
 #   ・発信試験: 24 個のタイムテーブル (CallTable.json、画面で編集)。結果は logs\call_yyyyMM.csv
 #   ・評価トレンド: $TrendDays 日分を 15 分ごとにまとめた trend.js。変化のコメントは logs\events.csv
+#   ・データの保存先は Config.ps1 の $LogDir (相対ならこのフォルダから、D:\... や \\server\... の絶対指定も可)
+#   ・過去のデータを足すときは Merge.bat (Monitor を止めてから)
 # ============================================================
 param(
     [switch]$Mock,
@@ -43,7 +45,9 @@ if ($IntervalSec -le 0) {
 if (-not $HistoryHours -or [double]$HistoryHours -le 0) { $HistoryHours = 72 }
 $HistoryMax = [int][Math]::Min(3000, [Math]::Ceiling([double]$HistoryHours * 3600 / [Math]::Max(1, $IntervalSec)) + 1)
 
-$LogPath = Join-Path $Dir $LogDir
+# データの保存先。相対 (logs など) ならこのフォルダの下、絶対 (D:\CsqWatchData、\\server\share\...) ならそのまま
+if (-not $LogDir) { $LogDir = 'logs' }
+if ([System.IO.Path]::IsPathRooted([string]$LogDir)) { $LogPath = [string]$LogDir } else { $LogPath = Join-Path $Dir $LogDir }
 if (-not (Test-Path -LiteralPath $LogPath)) { New-Item -ItemType Directory -Path $LogPath -Force | Out-Null }
 $DataJs    = Join-Path $Dir 'data.js'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -239,6 +243,9 @@ function Write-Data {
     $call = @{
         enabled         = $script:CallTable.enabled
         durationSec     = $script:CallTable.durationSec
+        repeat          = $script:CallTable.repeat
+        intervalMin     = $script:CallTable.intervalMin
+        seq             = $(if ($script:CallSeq) { @{ hour = [int]$script:CallSeq.slot.hour; time = [string]$script:CallSeq.slot.time; done = $script:CallSeq.done; total = $script:CallSeq.total; next = $script:CallSeq.next.ToString('yyyy-MM-dd HH:mm:ss') } } else { $null })
         savedAt         = $script:CallTable.savedAt
         slots           = @($script:CallTable.slots)
         duringEverySec  = [int]$CallDuringEverySec
@@ -352,6 +359,11 @@ function Invoke-Poll {
 $CallTablePath = Join-Path $Dir 'CallTable.json'
 $CallHistDir   = Join-Path $LogPath 'calltable_history'
 if ($null -eq $CallDuringEverySec) { $CallDuringEverySec = 5 }
+# 1 つの時刻で続けて発信する回数と間隔 (切断してから次の発信まで)。画面のタイムテーブルで変えられる
+if (-not $CallRepeat)            { $CallRepeat = 1 }
+if (-not $CallRepeatIntervalMin) { $CallRepeatIntervalMin = 5 }
+$CallDurMin = 5; $CallDurMax = 900; $CallRepeatMax = 10; $CallIntervalMax = 60
+$script:CallSeq = $null       # 実行中の連続試験 { slot, total, done, start, next }
 if ($null -eq $CallNumberAllow)    { $CallNumberAllow = @() }
 $script:CallTable     = $null
 $script:CallTableInfo = @{ appliedAt = ''; source = ''; error = ''; errorAt = ''; rejectedSavedAt = '' }
@@ -389,7 +401,14 @@ function New-DefaultCallTable {
     }
     $dur = 20
     if ($CallDuration) { $dur = [int]$CallDuration }
-    return [ordered]@{ version = 1; enabled = $en; durationSec = $dur; savedAt = ''; slots = $slots }
+    return [ordered]@{ version = 2; enabled = $en; durationSec = $dur; repeat = [int]$CallRepeat; intervalMin = [int]$CallRepeatIntervalMin; savedAt = ''; slots = $slots }
+}
+
+# 1 つの時刻の試験 (連続発信) にかかる秒数のめやす。1 回ごとに前後の AT+CSQ などで 30 秒を見込む
+#   回数 × (通話時間 + 30) + (回数 - 1) × 間隔
+function Get-CallSeqSec {
+    param([int]$Dur, [int]$Repeat, [int]$IntervalMin)
+    return ($Repeat * ($Dur + 30) + ($Repeat - 1) * $IntervalMin * 60)
 }
 
 # JSON から読んだタイムテーブルを確かめて、決まった形にする。おかしければ例外 (理由つき)
@@ -400,7 +419,15 @@ function ConvertTo-CallTable {
     if ($in.Count -ne 24) { throw ('行の数が 24 ではありません (' + $in.Count + ' 行)') }
     $dur = 20
     if ($null -ne $Obj.durationSec -and [string]$Obj.durationSec -ne '') { $dur = [int]$Obj.durationSec }
-    if ($dur -lt 5 -or $dur -gt 120) { throw ('呼出秒数は 5〜120 にしてください (' + $dur + ')') }
+    if ($dur -lt $CallDurMin -or $dur -gt $CallDurMax) { throw ('通話時間は ' + $CallDurMin + '〜' + $CallDurMax + ' 秒にしてください (' + $dur + ')') }
+    # 回数・間隔 (旧版のタイムテーブルには無いので、Config.ps1 の値を使う)
+    $rep = [int]$CallRepeat
+    if ($null -ne $Obj.repeat -and [string]$Obj.repeat -ne '') { $rep = [int]$Obj.repeat }
+    if ($rep -lt 1 -or $rep -gt $CallRepeatMax) { throw ('回数は 1〜' + $CallRepeatMax + ' にしてください (' + $rep + ')') }
+    $iv = [int]$CallRepeatIntervalMin
+    if ($null -ne $Obj.intervalMin -and [string]$Obj.intervalMin -ne '') { $iv = [int]$Obj.intervalMin }
+    if ($iv -lt 1 -or $iv -gt $CallIntervalMax) { throw ('間隔は 1〜' + $CallIntervalMax + ' 分にしてください (' + $iv + ')') }
+    $seqSec = Get-CallSeqSec $dur $rep $iv
     $slots = @()
     $seen = @{}
     for ($h = 0; $h -lt 24; $h++) {
@@ -420,7 +447,17 @@ function ConvertTo-CallTable {
         }
         $slots += [ordered]@{ hour = $h; time = $time; number = $num; on = $on }
     }
-    return [ordered]@{ version = 1; enabled = ($Obj.enabled -eq $true); durationSec = $dur; savedAt = [string]$Obj.savedAt; slots = $slots }
+    # ON の時刻どうしが、1 つの試験 (連続発信) の長さより近いと重なる
+    $mins = @($slots | Where-Object { $_.on } | ForEach-Object { [int]$_.time.Substring(0, 2) * 60 + [int]$_.time.Substring(3, 2) } | Sort-Object)
+    for ($k = 0; $k -lt $mins.Count -and $mins.Count -gt 1; $k++) {
+        $gap = $mins[($k + 1) % $mins.Count] - $mins[$k]
+        if ($gap -le 0) { $gap += 1440 }
+        if ($gap * 60 -lt $seqSec) {
+            $a = '{0:D2}:{1:D2}' -f [int][Math]::Floor($mins[$k] / 60), ($mins[$k] % 60)
+            throw ('時刻 ' + $a + ' の試験 (' + $rep + ' 回、約 ' + [Math]::Ceiling($seqSec / 60) + ' 分) が次の時刻と重なります。時刻を離すか、回数・間隔を減らしてください')
+        }
+    }
+    return [ordered]@{ version = 2; enabled = ($Obj.enabled -eq $true); durationSec = $dur; repeat = $rep; intervalMin = $iv; savedAt = [string]$Obj.savedAt; slots = $slots }
 }
 
 function Save-CallTable {
@@ -436,7 +473,7 @@ function Get-CallTableSummary {
     $t = $script:CallTable
     $on = @($t.slots | Where-Object { $_.on })
     $times = ($on | ForEach-Object { $_.time }) -join ','
-    return ('有効=' + $t.enabled + '  ON=' + $on.Count + '  呼出=' + $t.durationSec + 's  通話中測定=' + $CallDuringEverySec + 's  時刻=' + $times)
+    return ('有効=' + $t.enabled + '  ON=' + $on.Count + '  通話=' + $t.durationSec + 's  回数=' + $t.repeat + '  間隔=' + $t.intervalMin + 'min  通話中測定=' + $CallDuringEverySec + 's  時刻=' + $times)
 }
 
 function Import-CallTable {
@@ -625,7 +662,7 @@ function Get-CallCsvPath {
     return (Join-Path $LogPath ('call_' + $d.ToString('yyyyMM') + '.csv'))
 }
 
-$CallCsvHeader = 'Timestamp,Slot,Time,Number,Result,Code,RssiBefore,BerBefore,RssiDuringAvg,RssiDuringMin,BerDuringMax,DuringSamples,RssiAfter,BerAfter,DurationSec,Stage,Cause,CauseText,GpsPos,CievMin'
+$CallCsvHeader = 'Timestamp,Slot,Time,Number,Result,Code,RssiBefore,BerBefore,RssiDuringAvg,RssiDuringMin,BerDuringMax,DuringSamples,RssiAfter,BerAfter,DurationSec,Stage,Cause,CauseText,GpsPos,CievMin,Try'
 
 function Add-CallCsvLine {
     param([datetime]$d, [string]$line)
@@ -668,18 +705,21 @@ function Import-CallResults {
             stage = ''; cause = ''; causeText = ''; gps = ''; cievMin = ''
         }
         if ($c.Count -ge 20) { $x.stage = $c[15]; $x.cause = $c[16]; $x.causeText = $c[17]; $x.gps = $c[18]; $x.cievMin = $c[19] }
+        $x.try = ''
+        if ($c.Count -ge 21) { $x.try = $c[20] }
         [void]$script:CallResults.Add($x)
     }
     Write-TestLog 'INFO' ('今日の発信試験の結果を読込: ' + $script:CallResults.Count + ' 件')
 }
 
 function Invoke-TestCall {
-    param($Slot, [datetime]$now)
+    param($Slot, [datetime]$now, [int]$Try = 1, [int]$Total = 1)
     $num = [string]$Slot.number
     $dur = [int]$script:CallTable.durationSec
     $nowStr = $now.ToString('yyyy-MM-dd HH:mm:ss')
-    Write-Host ($now.ToString('HH:mm') + '  試験発信 ' + $num + ' (' + $dur + ' 秒)')
-    Write-TestLog 'INFO' ('試験発信 開始  ' + $Slot.hour + ' 時の行  ' + $Slot.time + '  ' + $num + '  ' + $dur + 's')
+    $tryStr = '' + $Try + '/' + $Total
+    Write-Host ($now.ToString('HH:mm') + '  試験発信 ' + $tryStr + '  ' + $num + ' (' + $dur + ' 秒)')
+    Write-TestLog 'INFO' ('試験発信 開始  ' + $tryStr + '  ' + $Slot.hour + ' 時の行  ' + $Slot.time + '  ' + $num + '  ' + $dur + 's')
 
     # 1. 発信直前
     $before = Get-CsqValue (Invoke-AtLog 'AT+CSQ' 3)
@@ -707,20 +747,20 @@ function Invoke-TestCall {
         t = $nowStr; slot = [int]$Slot.hour; time = [string]$Slot.time; number = $num; result = $j.result; code = $j.code
         rb = (Get-Cell $rb); bb = (Get-Cell $bb); rdAvg = (Get-Cell $rdAvg); rdMin = (Get-Cell $rdMin); bdMax = (Get-Cell $bdMax)
         n = [string]@($j.samples).Count; ra = (Get-Cell $ra); ba = (Get-Cell $ba); dur = [string]$dur
-        stage = $j.stage; cause = $j.cause; causeText = $j.causeText; gps = $j.gps; cievMin = ''
+        stage = $j.stage; cause = $j.cause; causeText = $j.causeText; gps = $j.gps; cievMin = ''; try = $tryStr
     }
     if (@($j.ciev).Count -gt 0) { $r.cievMin = [string](($j.ciev | Measure-Object -Minimum).Minimum) }
     [void]$script:CallResults.Add($r)
     $codeCsv = $j.code -replace ',', ' '
     Add-CallCsvLine $now (($nowStr, $r.slot, $r.time, $num, $r.result, $codeCsv, $r.rb, $r.bb, $r.rdAvg, $r.rdMin, $r.bdMax, $r.n, $r.ra, $r.ba, $r.dur,
-                            $r.stage, $r.cause, $r.causeText, ($r.gps -replace ',', ' '), $r.cievMin) -join ',')
-    Add-CsvLine $now ($nowStr + ',,,,,TestCall ' + $num + ' ' + $j.result)
-    Write-TestLog 'INFO' ('試験発信 終了  ' + $j.result + '  ' + $j.code + '  直前=' + $r.rb + '/' + $r.bb + '  通話中(平均/最小/ber最大/回数)=' + $r.rdAvg + '/' + $r.rdMin + '/' + $r.bdMax + '/' + $r.n + '  直後=' + $r.ra + '/' + $r.ba + '  到達=' + $r.stage + '  理由=' + $r.cause + ' ' + $r.causeText + '  GPS=' + $r.gps + '  CIEV最小=' + $r.cievMin)
+                            $r.stage, $r.cause, $r.causeText, ($r.gps -replace ',', ' '), $r.cievMin, $tryStr) -join ',')
+    Add-CsvLine $now ($nowStr + ',,,,,TestCall ' + $tryStr + ' ' + $num + ' ' + $j.result)
+    Write-TestLog 'INFO' ('試験発信 終了  ' + $tryStr + '  ' + $j.result + '  ' + $j.code + '  直前=' + $r.rb + '/' + $r.bb + '  通話中(平均/最小/ber最大/回数)=' + $r.rdAvg + '/' + $r.rdMin + '/' + $r.bdMax + '/' + $r.n + '  直後=' + $r.ra + '/' + $r.ba + '  到達=' + $r.stage + '  理由=' + $r.cause + ' ' + $r.causeText + '  GPS=' + $r.gps + '  CIEV最小=' + $r.cievMin)
     if ($j.gps -match '0') { Write-TestLog 'WARN' ('発信中に GPS の位置が 0 になりました (SKGPSPOSI=' + $j.gps + ')') }
     if ($during -and $j.result -eq '成功' -and @($j.samples).Count -eq 0 -and -not $j.notify) {
         Write-TestLog 'WARN' '通話中の AT+CSQ に応答がありません (機器が通話中に AT コマンドを受け付けない可能性)'
     }
-    Write-Host ($now.ToString('HH:mm') + '  試験発信 ' + $j.result + ' (' + $j.code + ')  rssi 直前=' + $r.rb + ' 通話中=' + $r.rdAvg + ' 直後=' + $r.ra)
+    Write-Host ($now.ToString('HH:mm') + '  試験発信 ' + $tryStr + ' ' + $j.result + ' (' + $j.code + ')  rssi 直前=' + $r.rb + ' 通話中=' + $r.rdAvg + ' 直後=' + $r.ra)
     Write-Data
 }
 
@@ -759,29 +799,57 @@ function Read-TrendLines {
     return $out
 }
 
+# コメントの日時を yyyy-MM-dd HH:mm にそろえる。メモ帳や Excel で直した形 (2026/10/28 9:30、全角数字、秒つき) も読む
+function ConvertTo-EventTime {
+    param([string]$s)
+    if (-not $s) { return $null }
+    $s = $s.Trim()
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($ch in $s.ToCharArray()) {
+        $c = [int]$ch
+        if ($c -ge 0xFF10 -and $c -le 0xFF19) { [void]$sb.Append([char]($c - 0xFF10 + 48)) }   # 全角数字
+        elseif ($c -eq 0xFF1A) { [void]$sb.Append(':') }
+        elseif ($c -eq 0xFF0F -or $c -eq 0xFF0D) { [void]$sb.Append('-') }
+        elseif ($c -eq 0x3000) { [void]$sb.Append(' ') }
+        else { [void]$sb.Append($ch) }
+    }
+    $m = [regex]::Match($sb.ToString(), '^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T]+(\d{1,2}):(\d{1,2})')
+    if (-not $m.Success) { return $null }
+    try {
+        $d = New-Object DateTime([int]$m.Groups[1].Value, [int]$m.Groups[2].Value, [int]$m.Groups[3].Value, [int]$m.Groups[4].Value, [int]$m.Groups[5].Value, 0)
+        return $d.ToString('yyyy-MM-dd HH:mm')
+    } catch { return $null }
+}
+
+# events.csv の 1 行を { t, text, id } に。見出しや読めない行は $null
+function ConvertFrom-EventLine {
+    param([string]$l)
+    $l = $l.TrimStart([char]0xFEFF)
+    $i = $l.IndexOf(',')
+    if ($i -lt 0) { return $null }
+    $ts = ConvertTo-EventTime ($l.Substring(0, $i).Trim('"', ' '))
+    if (-not $ts) { return $null }
+    $rest = $l.Substring($i + 1)
+    $id = ''
+    $j = $rest.LastIndexOf(',')
+    if ($j -ge 0) {
+        $tail = $rest.Substring($j + 1).Trim('"', ' ')
+        if ($tail -eq '' -or $tail -match '^\d{4}[-/]\d{1,2}[-/]\d{1,2} \d{1,2}:\d{2}(:\d{2})?$') { $id = $tail; $rest = $rest.Substring(0, $j) }
+    }
+    return @{ t = $ts; text = $rest.Trim().Trim('"'); id = $id }
+}
+
 function Read-Events {
     param([datetime]$From)
     $list = @()
     if (-not (Test-Path -LiteralPath $EventsCsv)) { return $list }
     $fromStr = $From.ToString('yyyy-MM-dd HH:mm')
     foreach ($l in [System.IO.File]::ReadAllLines($EventsCsv, [System.Text.Encoding]::UTF8)) {
-        $l = $l.TrimStart([char]0xFEFF)
-        $i = $l.IndexOf(',')
-        if ($i -lt 16) { continue }
-        $ts = $l.Substring(0, $i).Trim()
-        if ($ts -notmatch '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}') { continue }   # 見出しの行など
-        if ($ts.Substring(0, 16) -lt $fromStr) { continue }
-        $rest = $l.Substring($i + 1)
-        $id = ''
-        $j = $rest.LastIndexOf(',')
-        # 3 列目 (Id。画面から足したときの保存日時) があれば外す。メモ帳で足した行は Id が空でもよい
-        if ($j -ge 0) {
-            $tail = $rest.Substring($j + 1).Trim()
-            if ($tail -eq '' -or $tail -match '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$') { $id = $tail; $rest = $rest.Substring(0, $j) }
-        }
-        $list += @{ t = $ts.Substring(0, 16); text = $rest.Trim(); id = $id }
+        $e = ConvertFrom-EventLine $l
+        if (-not $e -or $e.t -lt $fromStr) { continue }
+        $list += $e
     }
-    return $list
+    return @($list | Sort-Object { $_.t })
 }
 
 function Write-Trend {
@@ -829,6 +897,8 @@ function Write-Trend {
             if ($c.Count -lt 15) { continue }
             $x = @{ t = $c[0].Substring(0, 16); slot = $c[1]; result = $c[4]; code = $c[5]; rb = $c[6]; bb = $c[7]; rdAvg = $c[8]; rdMin = $c[9]; bdMax = $c[10]; ra = $c[12]; ba = $c[13]; stage = ''; cause = ''; gps = '' }
             if ($c.Count -ge 20) { $x.stage = $c[15]; $x.cause = $c[16]; $x.gps = $c[18] }
+            $x.try = ''
+            if ($c.Count -ge 21) { $x.try = $c[20] }
             $calls.Add($x)
         }
 
@@ -863,18 +933,45 @@ function Receive-Events {
         $suffix = ''
         try {
             $o = [System.IO.File]::ReadAllText($f.FullName, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-            $t = ([string]$o.t).Trim()
-            if ($t -notmatch '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$') { throw ('日時の形式が正しくありません (' + $t + ')') }
-            $text = (([string]$o.text) -replace "[`r`n]+", ' ' -replace ',', '、').Trim()
-            if (-not $text) { throw 'コメントが空です' }
-            if ($text.Length -gt 200) { $text = $text.Substring(0, 200) }
+            $del = ($o.del -eq $true)
             $id = ([string]$o.id).Trim()
-            if (-not (Test-Path -LiteralPath $EventsCsv)) {
-                [System.IO.File]::WriteAllText($EventsCsv, "Timestamp,Text,Id`r`n", $Utf8Bom)
+            # 直す・消すときは、元のコメント (old.t と old.text) を探して置き換える
+            $oldT = $null; $oldText = ''
+            if ($o.old) { $oldT = ConvertTo-EventTime ([string]$o.old.t); $oldText = (([string]$o.old.text) -replace "[`r`n]+", ' ' -replace ',', '、').Trim() }
+            if (-not $del) {
+                $t = ConvertTo-EventTime ([string]$o.t)
+                if (-not $t) { throw ('日時の形式が正しくありません (' + [string]$o.t + ')') }
+                $text = (([string]$o.text) -replace "[`r`n]+", ' ' -replace ',', '、').Trim()
+                if (-not $text) { throw 'コメントが空です' }
+                if ($text.Length -gt 200) { $text = $text.Substring(0, 200) }
             }
-            [System.IO.File]::AppendAllText($EventsCsv, ($t + ',' + $text + ',' + $id + "`r`n"), $Utf8Bom)
-            Write-TestLog 'INFO' ('コメントを追加: ' + $t + '  ' + $text)
-            Write-Host ((Get-Date).ToString('HH:mm:ss') + '  コメントを追加しました: ' + $t + '  ' + $text) -ForegroundColor Cyan
+            $lines = New-Object System.Collections.Generic.List[string]
+            if (Test-Path -LiteralPath $EventsCsv) {
+                foreach ($l in [System.IO.File]::ReadAllLines($EventsCsv, [System.Text.Encoding]::UTF8)) { $lines.Add($l.TrimStart([char]0xFEFF)) }
+            }
+            if ($lines.Count -eq 0) { $lines.Add('Timestamp,Text,Id') }
+            $found = -1
+            if ($oldT) {
+                for ($q = 0; $q -lt $lines.Count; $q++) {
+                    $e = ConvertFrom-EventLine $lines[$q]
+                    if ($e -and $e.t -eq $oldT -and $e.text -eq $oldText) { $found = $q; break }
+                }
+                if ($found -lt 0) { throw ('直す元のコメントが events.csv に見つかりません (' + $oldT + ' ' + $oldText + ')') }
+            }
+            if ($del) {
+                $lines.RemoveAt($found)
+                $msg = 'コメントを削除: ' + $oldT + '  ' + $oldText
+            } elseif ($found -ge 0) {
+                $lines[$found] = $t + ',' + $text + ',' + $id
+                $msg = 'コメントを修正: ' + $oldT + ' → ' + $t + '  ' + $text
+            } else {
+                $lines.Add($t + ',' + $text + ',' + $id)
+                $msg = 'コメントを追加: ' + $t + '  ' + $text
+            }
+            [System.IO.File]::WriteAllText($EventsCsv, (($lines -join "`r`n") + "`r`n"), $Utf8Bom)
+            $script:EventsStamp = (Get-Item -LiteralPath $EventsCsv).LastWriteTimeUtc.Ticks
+            Write-TestLog 'INFO' $msg
+            Write-Host ((Get-Date).ToString('HH:mm:ss') + '  ' + $msg) -ForegroundColor Cyan
             $added++
         } catch {
             $suffix = '.rejected'
@@ -887,6 +984,19 @@ function Receive-Events {
         }
     }
     if ($added -gt 0) { Write-Trend }
+}
+
+# events.csv をメモ帳などで直接直したら、10 分を待たずに trend.js を作り直す
+$script:EventsStamp = 0
+if (Test-Path -LiteralPath $EventsCsv) { $script:EventsStamp = (Get-Item -LiteralPath $EventsCsv).LastWriteTimeUtc.Ticks }
+function Watch-EventsCsv {
+    if (-not (Test-Path -LiteralPath $EventsCsv)) { return }
+    $s = (Get-Item -LiteralPath $EventsCsv).LastWriteTimeUtc.Ticks
+    if ($s -ne $script:EventsStamp) {
+        $script:EventsStamp = $s
+        Write-TestLog 'INFO' 'events.csv が直接直されたので、評価トレンドを作り直します'
+        Write-Trend
+    }
 }
 
 # ---------------- メイン ----------------
@@ -929,20 +1039,54 @@ try {
             $script:InboxCheckAt = $now
             Receive-CallTable
             Receive-Events
+            Watch-EventsCsv
         }
         # 評価トレンドは 10 分ごとに作り直す
         if (($now - $script:TrendAt).TotalMinutes -ge 10) { Write-Trend }
-        # 発信試験 (同じ分に 2 度は発信しない)
+        # 発信試験 (同じ分に 2 度は始めない)。1 つの時刻で $CallTable.repeat 回、切断してから intervalMin 分あけて発信する。
+        # 発信と発信のあいだは、ふだんの受信の取得を続ける。
         if ($script:CallTable.enabled -and ($LastCallKey -ne $key)) {
             $hm = $now.ToString('HH:mm')
             $slot = $null
             foreach ($s in $script:CallTable.slots) { if ($s.on -and $s.time -eq $hm) { $slot = $s; break } }
             if ($slot) {
                 $LastCallKey = $key
-                Invoke-TestCall $slot $now
+                if ($script:CallSeq) {
+                    Write-TestLog 'WARN' ('前の試験 (' + $script:CallSeq.slot.time + ' の ' + $script:CallSeq.done + '/' + $script:CallSeq.total + ' 回目まで) が続いているため、' + $hm + ' の試験は見送ります')
+                } else {
+                    $tot = [int]$script:CallTable.repeat
+                    if ($tot -lt 1) { $tot = 1 }
+                    $script:CallSeq = @{ slot = $slot; total = $tot; done = 0; start = $now; next = $now }
+                    Write-TestLog 'INFO' ('試験開始  ' + $slot.time + '  ' + $tot + ' 回  切断から ' + $script:CallTable.intervalMin + ' 分あけて  通話 ' + $script:CallTable.durationSec + 's')
+                }
+            }
+        }
+        if (-not $script:CallTable.enabled -and $script:CallSeq) {
+            Write-TestLog 'INFO' ('発信試験が停止されたため、残りの発信 (' + ($script:CallSeq.total - $script:CallSeq.done) + ' 回) を取りやめます')
+            $script:CallSeq = $null
+            Write-Data
+        }
+        if ($script:CallSeq -and (Get-Date) -ge $script:CallSeq.next) {
+            $q = $script:CallSeq
+            $late = ((Get-Date) - $q.next).TotalSeconds
+            $q.done++
+            if ($late -gt 120) {
+                # スリープなどで大きく遅れた回は発信しない (間隔が崩れるため)
+                Write-TestLog 'WARN' ('試験 ' + $q.done + '/' + $q.total + ' 回目は予定より ' + [int]$late + ' 秒遅れたため見送ります')
+            } else {
+                Invoke-TestCall $q.slot (Get-Date) $q.done $q.total
                 Write-Trend                      # 試験の結果をすぐトレンドにも出す
                 $next = Get-Date                 # 発信の直後に 1 回取得する
             }
+            if ($q.done -ge $q.total) {
+                Write-TestLog 'INFO' ('試験終了  ' + $q.slot.time + '  ' + $q.total + ' 回')
+                $script:CallSeq = $null
+            } else {
+                # 次の発信は、切断 (この回の終わり) から間隔をあける
+                $q.next = (Get-Date).AddMinutes([int]$script:CallTable.intervalMin)
+                Write-TestLog 'DBG' ('次の発信 ' + ($q.done + 1) + '/' + $q.total + ' は ' + $q.next.ToString('HH:mm:ss'))
+            }
+            Write-Data
         }
         if ($now -ge $next) {
             $late = [int]($now - $next).TotalSeconds

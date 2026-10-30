@@ -85,7 +85,9 @@
     .hours div.y { background: #713f12; color: #fef3c7; }
     .hours div.r { background: #7f1d1d; color: #fee2e2; }
     .ev-list { margin: 8px 0 0; padding: 0; list-style: none; font-size: 0.85rem; }
-    .ev-list li { padding: 3px 0; color: #e2e8f0; }
+    .ev-list li { padding: 3px 4px; color: #e2e8f0; cursor: pointer; border-radius: 4px; }
+    .ev-list li:hover { background: #1e293b; }
+    .ev-list li em { color: #64748b; font-style: normal; font-size: 0.78rem; margin-left: 8px; }
     .ev-list li span { color: #fbbf24; margin-right: 8px; }
     .ev-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; font-size: 0.85rem; }
   </style>
@@ -159,7 +161,9 @@
     <div id="callEdit" hidden>
       <div class="edit-bar">
         <label><input type="checkbox" id="edEnabled"> 発信試験を有効にする</label>
-        <label>呼出秒数 <input class="in" type="number" id="edDur" min="5" max="120"> 秒</label>
+        <label title="発信 (ATD) から切断 (ATH) まで。相手が出るまでの呼出も含む">通話時間 <input class="in" type="number" id="edDur" min="5" max="900" style="width:5em"> 秒</label>
+        <label title="1 つの時刻で続けて発信する回数">回数 <input class="in" type="number" id="edRep" min="1" max="10" style="width:3.5em"> 回</label>
+        <label title="切断してから次の発信まで">間隔 <input class="in" type="number" id="edIv" min="1" max="60" style="width:3.5em"> 分</label>
         <span class="spacer"></span>
         <label>番号 <input class="in" type="text" id="edBulkNum" placeholder="+8190xxxxxxxx"></label>
         <button class="btn" id="edBulkApply">全行に入れる</button>
@@ -190,7 +194,7 @@
     <div class="call-head">
       <h2>&#x1F4C8; 評価トレンド</h2>
       <span class="seg" id="trendSeg">
-        <button data-d="1">1 日</button><button data-d="3">3 日</button><button data-d="7" class="on">1 週間</button>
+        <button data-d="1">1 日</button><button data-d="3">3 日</button><button data-d="7" class="on">1 週間</button><button data-d="0" id="trendAll" title="Config.ps1 の $TrendDays 日分 (過去のデータを長く見るとき)">全期間</button>
       </span>
       <span class="call-sum" id="trendInfo"></span>
       <span class="spacer"></span>
@@ -199,8 +203,11 @@
     <div class="ev-form" id="evForm" hidden>
       <label>日時 <input class="in" type="text" id="evTime" maxlength="16" style="width:10.5em" placeholder="YYYY-MM-DD HH:MM"></label>
       <label>内容 <input class="in" type="text" id="evText" maxlength="100" style="width:28em" placeholder="例: Inmarsat 側の同軸 3.9m を抜いた"></label>
+      <button class="btn" id="evNow" title="日時を今にする">今</button>
       <button class="btn primary" id="evSave">保存</button>
+      <button class="btn" id="evDel" hidden>削除</button>
       <button class="btn" id="evCancel">キャンセル</button>
+      <span class="note" id="evMode" style="width:100%;margin:0"></span>
       <span class="call-msg err" id="evErr"></span>
     </div>
     <div class="call-msg" id="evMsg"></div>
@@ -399,7 +406,9 @@
       st.textContent = c.enabled ? '有効' : '停止中';
       st.className = 'pill ' + (c.enabled ? 'on' : 'off');
       var onN = c.slots.filter(function (s) { return s.on; }).length;
-      $('callSum').textContent = 'ON ' + onN + ' 件 / 呼出 ' + c.durationSec + ' 秒 / 通話中の測定 ' +
+      var rp = c.repeat || 1;
+      $('callSum').textContent = (c.seq ? '試験中 ' + c.seq.time + ' の ' + c.seq.done + '/' + c.seq.total + ' 回目まで済' + (c.seq.done < c.seq.total ? ' (次 ' + hhmm(c.seq.next) + ')' : '') + ' / ' : '') +
+        'ON ' + onN + ' 件 / 通話 ' + c.durationSec + ' 秒' + (rp > 1 ? ' × ' + rp + ' 回 (切断から ' + (c.intervalMin || 5) + ' 分あけて)' : '') + ' / 通話中の測定 ' +
         (c.duringEverySec > 0 ? c.duringEverySec + ' 秒ごと' : 'しない') +
         ' / 今日の結果 ' + (c.todayOk || 0) + ' 成功 / ' + (c.todayTotal || 0) + ' 回';
 
@@ -423,9 +432,9 @@
         setCallMsg('タイムテーブル: ' + c.appliedAt + ' に反映', '');
       }
 
-      // 今日の結果を時の行ごとにまとめる (同じ行に複数あれば最後のもの)
-      var res = {};
-      (c.today || []).forEach(function (r) { res[r.slot] = r; });
+      // 今日の結果を時の行ごとにまとめる。各回の成否を並べ、レベルなどは最後の回を出す
+      var res = {}, tries = {};
+      (c.today || []).forEach(function (r) { res[r.slot] = r; (tries[r.slot] = tries[r.slot] || []).push(r); });
       var now = new Date();
       var nowHM = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
       var rows = '';
@@ -436,8 +445,15 @@
         var gp = '', cv = '';
         var result = '<span class="muted">—</span>', code = '', rb = '', rd = '', ra = '', dl = '', bb = '', bd = '', ba = '';
         if (r) {
-          result = r.result === '成功' ? '<span class="r-ok">✓ 成功</span>' : '<span class="r-ng">✗ 失敗</span>';
-          result += ' <span class="muted">' + esc(hhmm(r.t)) + '</span>';
+          var tr = tries[s.hour];
+          if (tr.length > 1) {
+            var okN2 = tr.filter(function (x) { return x.result === '成功'; }).length;
+            result = tr.map(function (x) { return '<span class="' + (x.result === '成功' ? 'r-ok' : 'r-ng') + '" title="' + esc(hhmm(x.t) + ' ' + (x.try || '') + ' ' + x.result + ' ' + x.code) + '">' + (x.result === '成功' ? '✓' : '✗') + '</span>'; }).join('') +
+                     ' <b>' + okN2 + '/' + tr.length + '</b> <span class="muted">最後 ' + esc(hhmm(r.t)) + '</span>';
+          } else {
+            result = r.result === '成功' ? '<span class="r-ok">✓ 成功</span>' : '<span class="r-ng">✗ 失敗</span>';
+            result += ' <span class="muted">' + esc(hhmm(r.t)) + '</span>';
+          }
           code = esc(r.code);
           gp = r.gps ? (/0/.test(r.gps) ? '<span class="delta-bad">' + esc(r.gps) + '</span>' : esc(r.gps)) : '';
           cv = esc(r.cievMin || '');
@@ -465,6 +481,8 @@
       editing = true;
       $('edEnabled').checked = !!lastCall.enabled;
       $('edDur').value = lastCall.durationSec;
+      $('edRep').value = lastCall.repeat || 1;
+      $('edIv').value = lastCall.intervalMin || 5;
       $('edBulkNum').value = '';
       $('edErr').textContent = '';
       var rows = '';
@@ -500,8 +518,10 @@
     function saveEditor() {
       $('edErr').textContent = '';
       var errs = [];
-      var dur = parseInt($('edDur').value, 10);
-      if (isNaN(dur) || dur < 5 || dur > 120) errs.push('呼出秒数は 5〜120 にしてください');
+      var dur = parseInt($('edDur').value, 10), rep = parseInt($('edRep').value, 10), iv = parseInt($('edIv').value, 10);
+      if (isNaN(dur) || dur < 5 || dur > 900) errs.push('通話時間は 5〜900 秒にしてください');
+      if (isNaN(rep) || rep < 1 || rep > 10) errs.push('回数は 1〜10 にしてください');
+      if (isNaN(iv) || iv < 1 || iv > 60) errs.push('間隔は 1〜60 分にしてください');
       var seen = {}, slots = [];
       editorRows().forEach(function (e, h) {
         var time = e.time.value.trim().replace('：', ':'), num = e.num.value.replace(/[\s-]/g, ''), on = e.on.checked;
@@ -517,15 +537,24 @@
         }
         slots.push({ hour: h, time: time, number: num, on: on });
       });
+      // ON の時刻どうしが、1 つの試験 (連続発信) の長さより近いと重なる (Monitor 側と同じ確認)
+      if (!errs.length) {
+        var seqSec = rep * (dur + 30) + (rep - 1) * iv * 60;   // 回数 × (通話時間 + 30 秒) + (回数 − 1) × 間隔
+        var mins = slots.filter(function (s) { return s.on; }).map(function (s) { return parseInt(s.time.substring(0, 2), 10) * 60 + parseInt(s.time.substring(3, 5), 10); }).sort(function (a, b) { return a - b; });
+        for (var k = 0; k < mins.length && mins.length > 1; k++) {
+          var gap = mins[(k + 1) % mins.length] - mins[k]; if (gap <= 0) gap += 1440;
+          if (gap * 60 < seqSec) { errs.push('時刻 ' + pad2(Math.floor(mins[k] / 60)) + ':' + pad2(mins[k] % 60) + ' の試験 (' + rep + ' 回、約 ' + Math.ceil(seqSec / 60) + ' 分) が次の時刻と重なります'); break; }
+        }
+      }
       if (errs.length) { $('edErr').textContent = errs.slice(0, 3).join(' / ') + (errs.length > 3 ? ' ほか' : ''); return; }
 
       var enabled = $('edEnabled').checked;
       var onN = slots.filter(function (s) { return s.on; }).length;
-      var msg = 'タイムテーブルを保存します。\n\n発信試験: ' + (enabled ? '有効' : '停止') + '\nON の行: ' + onN + ' 件\n呼出秒数: ' + dur + ' 秒\n\n' +
+      var msg = 'タイムテーブルを保存します。\n\n発信試験: ' + (enabled ? '有効' : '停止') + '\nON の行: ' + onN + ' 件\n通話時間: ' + dur + ' 秒\n回数: ' + rep + ' 回' + (rep > 1 ? ' (切断から ' + iv + ' 分あけて)' : '') + '\n\n' +
                 (enabled && onN > 0 ? '保存すると、この内容で定時に発信します (通話料がかかります)。' : '保存しても発信は行いません。');
       if (!window.confirm(msg)) return;
 
-      var table = { version: 1, enabled: enabled, durationSec: dur, savedAt: nowText(), slots: slots };
+      var table = { version: 2, enabled: enabled, durationSec: dur, repeat: rep, intervalMin: iv, savedAt: nowText(), slots: slots };
       var blob = new Blob([JSON.stringify(table, null, 2)], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -555,7 +584,7 @@
     }
 
     // ================= 評価トレンド =================
-    var trendChart = null, trendDays = 7, lastTrend = null, pendingEvId = '', pendingEvSince = 0;
+    var trendChart = null, trendDays = 7, lastTrend = null, pendingEvId = '', pendingEvSince = 0, pendingEvDel = null;
 
     // コメントの縦線 (受信グラフと評価トレンドの両方で使う)。chart.$events = [{ i: 位置, text: 内容 }]
     var eventLines = {
@@ -606,7 +635,8 @@
                 callback: function (v) {
                   var s = this.getLabelForValue(v); var hh = s.substring(11, 13), mm = s.substring(14, 16);
                   if (mm !== '00') return null;
-                  var step = trendDays >= 7 ? 12 : (trendDays >= 3 ? 6 : 3);
+                  var dd = trendDays || (lastTrend && lastTrend.days) || 7;
+                  var step = dd >= 14 ? 24 : (dd >= 7 ? 12 : (dd >= 3 ? 6 : 3));
                   if (parseInt(hh, 10) % step !== 0) return null;
                   return hh === '00' ? [hh + ':00', md(s)] : hh + ':00';
                 }
@@ -622,8 +652,11 @@
                 title: function (items) { return items.length ? items[0].label : ''; },
                 label: function (i) {
                   if (i.datasetIndex >= 4) {
-                    var c = (i.chart.$calls || {})[i.dataIndex]; if (!c) return '';
-                    return '発信 ' + c.t.substring(11) + ' ' + c.result + ' ' + c.code + (c.gps ? ' GPS ' + c.gps : '');
+                    var cs = (i.chart.$calls || {})[i.dataIndex] || [];
+                    var want = i.datasetIndex === 4 ? '成功' : '失敗';
+                    return cs.filter(function (c) { return (c.result === '成功') === (want === '成功'); }).map(function (c) {
+                      return '発信 ' + c.t.substring(11) + (c.try ? ' (' + c.try + ')' : '') + ' ' + c.result + ' ' + c.code + (c.gps ? ' GPS ' + c.gps : '');
+                    });
                   }
                   var b = (lastTrend && lastTrend.view) ? lastTrend.view[i.dataIndex] : null;
                   if (i.datasetIndex === 2 && b) return 'CSQ 平均 ' + b.a + ' (最小 ' + b.lo + ' / 最大 ' + b.hi + ')' + (b.f ? ' 取得失敗 ' + b.f : '');
@@ -643,12 +676,17 @@
           renderTrend(lastTrend);
         };
       }
-      $('btnEvAdd').onclick = function () {
-        $('evForm').hidden = false; $('evErr').textContent = '';
-        $('evTime').value = nowText().substring(0, 16); $('evText').value = ''; $('evText').focus();
+      $('btnEvAdd').onclick = function () { openEvent(null); };
+      $('evCancel').onclick = function () { $('evForm').hidden = true; evEditing = null; };
+      $('evSave').onclick = function () { saveEvent(false); };
+      $('evDel').onclick = function () { saveEvent(true); };
+      $('evNow').onclick = function () { $('evTime').value = nowText().substring(0, 16); $('evText').focus(); };
+      // 一覧のコメントを押すと、直す・消すための入力欄が開く
+      $('evList').onclick = function (ev) {
+        var li = ev.target.closest('li'); if (!li || !lastTrend) return;
+        var e = (lastTrend.events || [])[parseInt(li.getAttribute('data-k'), 10)];
+        if (e) openEvent(e);
       };
-      $('evCancel').onclick = function () { $('evForm').hidden = true; };
-      $('evSave').onclick = saveEvent;
       loadTrend();
       setInterval(loadTrend, 60000);
     }
@@ -668,7 +706,8 @@
       if (!d || !d.buckets || !trendChart) return;
       lastTrend = d;
       var all = d.buckets;
-      var from = toMin(all.length ? all[all.length - 1].t : nowText()) - trendDays * 1440;
+      var from = toMin(all.length ? all[all.length - 1].t : nowText()) - (trendDays || d.days || 7) * 1440;
+      if ($('trendAll')) $('trendAll').textContent = '全期間 (' + (d.days || 7) + ' 日)';
       var v = all.filter(function (b) { return toMin(b.t) >= from; });
       d.view = v;
       if (!v.length) return;
@@ -688,7 +727,7 @@
       var calls = (d.calls || []).filter(function (c) { return toMin(c.t) >= startMin; });
       calls.forEach(function (c) {
         var i = idx(c.t); if (i < 0 || i >= v.length) return;
-        callAt[i] = c;
+        (callAt[i] = callAt[i] || []).push(c);   // 15 分の中に複数回あれば全部
         if (c.result === '成功') ok[i] = mx - 2; else ng[i] = mx - 4;
       });
       trendChart.data.datasets[4].data = ok;
@@ -722,33 +761,73 @@
       }).join('');
 
       // コメントの一覧 (新しい順)
-      $('evList').innerHTML = evs.slice().reverse().map(function (e) { return '<li><span>' + esc(e.t) + '</span>' + esc(e.text) + '</li>'; }).join('');
+      var allEv = d.events || [];
+      $('evList').innerHTML = evs.slice().reverse().map(function (e) {
+        return '<li data-k="' + allEv.indexOf(e) + '" title="押すと直す・消すことができます"><span>' + esc(e.t) + '</span>' + esc(e.text) + '<em>直す</em></li>';
+      }).join('');
 
       // 受信グラフにも同じコメントの線を出す
       if (chart) { chart.$eventsSrc = d.events || []; setLiveEvents(); chart.update(); }
 
       // 画面で追加したコメントが取り込まれたか
       if (pendingEvId) {
-        if ((d.events || []).some(function (e) { return e.id === pendingEvId; })) { setEvMsg('コメントを追加しました (反映済み)', 'ok'); pendingEvId = ''; }
+        var done = pendingEvDel
+          ? !(d.events || []).some(function (e) { return e.t === pendingEvDel.t && e.text === pendingEvDel.text; }) && d.made >= pendingEvId
+          : (d.events || []).some(function (e) { return e.id === pendingEvId; });
+        if (done) { setEvMsg((pendingEvDel ? 'コメントを削除しました' : 'コメントを保存しました') + ' (反映済み)', 'ok'); pendingEvId = ''; pendingEvDel = null; }
         else if (Date.now() - pendingEvSince > 30000) setEvMsg('まだ取り込まれていません。Monitor が動いているか、保存したファイルが受け取り先にあるかを確認してください。', 'warn');
       }
     }
 
+    var evEditing = null;
+    function openEvent(e) {
+      evEditing = e;
+      $('evForm').hidden = false; $('evErr').textContent = '';
+      $('evDel').hidden = !e;
+      $('evTime').value = e ? e.t : '';
+      $('evText').value = e ? e.text : '';
+      $('evMode').textContent = e
+        ? '直しています: ' + e.t + ' ' + e.text + '(日時も直せます)'
+        : '日時を入れてください (例: 2026-10-28 09:30 / 2026/10/28 9:30 も可)。今の時刻にするときは「今」を押します。';
+      $('evTime').focus(); $('evTime').select();
+    }
+
+    // 日時の入力をそろえる (全角数字、/ 区切り、1 桁の時・分、秒つきも受け付ける)。読めなければ ''
+    function normTime(s) {
+      s = String(s || '').replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+        .replace(/[／－]/g, '-').replace(/：/g, ':').replace(/　/g, ' ').trim();
+      var m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[ T]+(\d{1,2}):(\d{1,2})/.exec(s);
+      if (!m) return '';
+      var d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+      if (d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3] || +m[4] > 23 || +m[5] > 59) return '';
+      return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+
     function setEvMsg(text, cls) { var m = $('evMsg'); m.textContent = text; m.className = 'call-msg ' + (cls || ''); }
 
-    function saveEvent() {
-      var tm = $('evTime').value.trim().replace('T', ' '), tx = $('evText').value.trim();
-      if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(tm)) { $('evErr').textContent = '日時は YYYY-MM-DD HH:MM で入れてください'; return; }
-      if (!tx) { $('evErr').textContent = '内容を入れてください'; return; }
-      var ev = { t: tm, text: tx, id: nowText() };
+    function saveEvent(del) {
+      var tm = normTime($('evTime').value), tx = $('evText').value.trim();
+      var ev = { id: nowText() };
+      if (evEditing) ev.old = { t: evEditing.t, text: evEditing.text };
+      if (del) {
+        if (!confirm('このコメントを消しますか?\n' + evEditing.t + '  ' + evEditing.text)) return;
+        ev.del = true;
+      } else {
+        if (!$('evTime').value.trim()) { $('evErr').textContent = '日時を入れてください (例: 2026-10-28 09:30)'; $('evTime').focus(); return; }
+        if (!tm) { $('evErr').textContent = '日時が読めません。YYYY-MM-DD HH:MM で入れてください (例: 2026-10-28 09:30)'; return; }
+        if (!tx) { $('evErr').textContent = '内容を入れてください'; return; }
+        if (toMin(tm) > Date.now() / 60000 + 1) { $('evErr').textContent = '未来の日時になっています'; return; }
+        ev.t = tm; ev.text = tx;
+        $('evTime').value = tm;
+      }
       var blob = new Blob([JSON.stringify(ev)], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = 'csqwatch_event.json';
       document.body.appendChild(a); a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-      pendingEvId = ev.id; pendingEvSince = Date.now();
-      $('evForm').hidden = true;
-      setEvMsg('保存しました。Monitor の取り込みを待っています… (反映は 1 分以内)', 'warn');
+      pendingEvId = ev.id; pendingEvSince = Date.now(); pendingEvDel = del ? ev.old : null;
+      $('evForm').hidden = true; evEditing = null;
+      setEvMsg((del ? '削除' : '保存') + 'しました (' + (del ? ev.old.t : ev.t) + ')。Monitor の取り込みを待っています… (反映は 1 分以内)', 'warn');
       setTimeout(loadTrend, 8000); setTimeout(loadTrend, 15000);
     }
 
